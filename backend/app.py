@@ -14,7 +14,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 
 hardcoded_answers = {
     "What is this project?":
-      "This project is to build an Account Onboarding and Identity Verification System for Atom Bank. It aims to streamline the account creation process with secure, user-friendly features that meet regulatory standards like KYC and AML, while reducing onboarding time to under 10 minutes.",
+      "This project is to build an Account Onboarding and Identity Verification System for Dundermifflin. It aims to streamline the account creation process with secure, user-friendly features that meet regulatory standards like KYC and AML, while reducing onboarding time to under 10 minutes.",
     "How will user data be protected?":
       "User data is secured with AES-256 encryption for both storage and transfer, multi-factor authentication (MFA), and GDPR-compliant handling, ensuring robust security throughout the onboarding process.",
     "Who is the best to contact for assistance with an API issue?":

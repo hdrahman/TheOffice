@@ -1,6 +1,6 @@
 # Virtual Office Platform for Hybrid Work Engagement
 
-Welcome to the **Virtual Office Platform**! 🏆 This application, developed for the DurHack hackathon, won Atom Bank's challenge for "Innovative Use of Media/Tech to Engage Colleagues in a Hybrid Working World." Our platform used  web technologies to allow seamless interaction and collaboration in a hybrid work environment.
+Welcome to the **Virtual Office Platform**! 🏆 This application, developed for the Zentra AI hackathon, won Dundermifflin's challenge for "Innovative Use of Media/Tech to Engage Colleagues in a Hybrid Working World." Our platform used  web technologies to allow seamless interaction and collaboration in a hybrid work environment.
 
 ## Table of Contents
 

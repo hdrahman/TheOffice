@@ -1,0 +1,161 @@
+{
+    "1": [
+        {
+            "text": "Let's aim to finalize the API by tomorrow.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-10T09:00:00Z"
+        },
+        {
+            "text": "Sure thing! I'll test it tonight.",
+            "senderId": "Sophia Harper",
+            "timestamp": "2023-10-10T09:05:00Z"
+        },
+        {
+            "text": "Finalizing tests on my end as well!",
+            "senderId": "kalmani",
+            "timestamp": "2024-11-03T10:00:00Z"
+        },
+        {
+            "text": "Nearly done!",
+            "senderId": "kalmani",
+            "timestamp": "2024-11-03T07:41:30.100Z"
+        }
+    ],
+    "2": [
+        {
+            "text": "I'll send over the design assets tonight.",
+            "senderId": "Ethan Bennett",
+            "timestamp": "2023-10-10T10:00:00Z"
+        },
+        {
+            "text": "Thanks! I'll start integrating them tomorrow.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-10T10:10:00Z"
+        },
+        {
+            "text": "Need any adjustments on those assets?",
+            "senderId": "Ethan Bennett",
+            "timestamp": "2023-10-11T08:45:00Z"
+        },
+        {
+            "text": "Looks good so far, thank you!",
+            "senderId": "kalmani",
+            "timestamp": "2024-11-03T11:00:00Z"
+        }
+    ],
+    "9": [
+        {
+            "text": "Does anyone have experience with GitLab CI/CD?",
+            "senderId": "Sophia Harper",
+            "timestamp": "2023-10-11T09:00:00Z"
+        },
+        {
+            "text": "Yes, I've set it up for my last project.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-11T09:10:00Z"
+        },
+        {
+            "text": "Do you mind sharing some best practices?",
+            "senderId": "Ethan Bennett",
+            "timestamp": "2023-10-11T09:15:00Z"
+        },
+        {
+            "text": "Absolutely! Make sure to set up environment-specific variables.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-11T09:20:00Z"
+        },
+        {
+            "text": "Thanks! That\u00e2\u20ac\u2122s super helpful.",
+            "senderId": "Jack Thompson",
+            "timestamp": "2023-10-11T09:25:00Z"
+        }
+    ],
+    "10": [
+        {
+            "text": "Has anyone tried the new React 18 features?",
+            "senderId": "Noah Miller",
+            "timestamp": "2023-10-11T10:00:00Z"
+        },
+        {
+            "text": "Yes, it's a game-changer for server-side rendering.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-11T10:10:00Z"
+        },
+        {
+            "text": "I noticed performance improvements with concurrent mode.",
+            "senderId": "Amelia Garcia",
+            "timestamp": "2023-10-11T10:15:00Z"
+        },
+        {
+            "text": "Right? It feels way smoother!",
+            "senderId": "Lucas Rivera",
+            "timestamp": "2023-10-11T10:20:00Z"
+        },
+        {
+            "text": "Agreed. It's a big step forward for React.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-11T10:30:00Z"
+        }
+    ],
+    "11": [
+        {
+            "text": "What are some best practices for Django performance?",
+            "senderId": "Olivia Carter",
+            "timestamp": "2023-10-11T11:00:00Z"
+        },
+        {
+            "text": "Using caching can improve response times significantly.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-11T11:15:00Z"
+        },
+        {
+            "text": "Database optimization is key too.",
+            "senderId": "Emma Brooks",
+            "timestamp": "2023-10-11T11:20:00Z"
+        },
+        {
+            "text": "Agreed, caching and database indexing make a world of difference.",
+            "senderId": "Jack Thompson",
+            "timestamp": "2023-10-11T11:25:00Z"
+        },
+        {
+            "text": "Thanks for the tips, everyone!",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-11T11:30:00Z"
+        }
+    ],
+    "15": [
+        {
+            "text": "Let's finalize the new structure this week.",
+            "senderId": "Ethan Bennett",
+            "timestamp": "2023-10-12T10:00:00Z"
+        },
+        {
+            "text": "Sounds good. I'll review the module changes.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-12T10:10:00Z"
+        },
+        {
+            "text": "I\u00e2\u20ac\u2122ll prepare documentation for the new setup.",
+            "senderId": "Emily Stewart",
+            "timestamp": "2023-10-12T10:15:00Z"
+        },
+        {
+            "text": "Great! That'll help us onboard new members faster.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-12T10:20:00Z"
+        }
+    ],
+    "17": [
+        {
+            "text": "The data pipeline is set up, ready for testing.",
+            "senderId": "Lily Johnson",
+            "timestamp": "2023-10-12T12:00:00Z"
+        },
+        {
+            "text": "Perfect, I'll start loading sample data.",
+            "senderId": "kalmani",
+            "timestamp": "2023-10-12T12:10:00Z"
+        }
+    ]
+}

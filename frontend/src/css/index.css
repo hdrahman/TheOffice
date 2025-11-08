@@ -1,0 +1,16 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+    background-color: #614879;
+    background: linear-gradient(to top right, #614879, rgb(55, 19, 80));
+    height: calc(100vh - 27px);
+}
+
+@font-face {
+    font-family: 'MagnumSans';
+    src: url('./assets/MagnumSans.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }

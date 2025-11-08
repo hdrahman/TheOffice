@@ -1,0 +1,6 @@
+.logo {
+    position: absolute;
+    display: flex;
+    left: 32px;
+    z-index: 999;
+}

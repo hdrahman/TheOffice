@@ -1,0 +1,196 @@
+{
+    "1": {
+        "id": "1",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Sophia Harper"
+        ],
+        "name": "Sophia Harper",
+        "lastMessage": "Let's finalize the API by tomorrow."
+    },
+    "2": {
+        "id": "2",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Ethan Bennett"
+        ],
+        "name": "Ethan Bennett",
+        "lastMessage": "I'll send over the design assets tonight."
+    },
+    "3": {
+        "id": "3",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Lily Johnson"
+        ],
+        "name": "Lily Johnson",
+        "lastMessage": "Let's refactor that component soon."
+    },
+    "4": {
+        "id": "4",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Olivia Carter"
+        ],
+        "name": "Olivia Carter",
+        "lastMessage": "Let's do it!"
+    },
+    "5": {
+        "id": "5",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Noah Miller"
+        ],
+        "name": "Noah Miller",
+        "lastMessage": "I'll review the PR by end of day."
+    },
+    "6": {
+        "id": "6",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Amelia Garcia"
+        ],
+        "name": "Amelia Garcia",
+        "lastMessage": "Can we add more test coverage for that module?"
+    },
+    "7": {
+        "id": "7",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Lucas Rivera"
+        ],
+        "name": "Lucas Rivera",
+        "lastMessage": "We need to optimize that query."
+    },
+    "8": {
+        "id": "8",
+        "type": "direct",
+        "participants": [
+            "Kalmani",
+            "Emma Brooks"
+        ],
+        "name": "Emma Brooks",
+        "lastMessage": "Let's discuss the new feature implementation."
+    },
+    "9": {
+        "id": "9",
+        "type": "community",
+        "participants": [
+            "Kalmani",
+            "Sophia Harper",
+            "Ethan Bennett",
+            "Jack Thompson"
+        ],
+        "name": "GitLab Community",
+        "lastMessage": "Does anyone have experience with GitLab CI/CD?"
+    },
+    "10": {
+        "id": "10",
+        "type": "community",
+        "participants": [
+            "Kalmani",
+            "Noah Miller",
+            "Amelia Garcia",
+            "Lucas Rivera"
+        ],
+        "name": "React Developers",
+        "lastMessage": "Has anyone tried the new React 18 features?"
+    },
+    "11": {
+        "id": "11",
+        "type": "community",
+        "participants": [
+            "Kalmani",
+            "Olivia Carter",
+            "Emma Brooks",
+            "Jack Thompson"
+        ],
+        "name": "Python Enthusiasts",
+        "lastMessage": "What are some best practices for Django performance?"
+    },
+    "12": {
+        "id": "12",
+        "type": "community",
+        "participants": [
+            "Kalmani",
+            "Sophia Harper",
+            "Lily Johnson",
+            "Amelia Garcia"
+        ],
+        "name": "DevOps Group",
+        "lastMessage": "Any tips for optimizing Docker images?"
+    },
+    "13": {
+        "id": "13",
+        "type": "community",
+        "participants": [
+            "Kalmani",
+            "Ethan Bennett",
+            "Noah Miller",
+            "Lucas Rivera"
+        ],
+        "name": "JavaScript Coders",
+        "lastMessage": "How are you all handling ES6 modules?"
+    },
+    "14": {
+        "id": "14",
+        "type": "team",
+        "participants": [
+            "Kalmani",
+            "Jake Wilson"
+        ],
+        "name": "Project Alpha Team",
+        "lastMessage": "We're on track for the project."
+    },
+    "15": {
+        "id": "15",
+        "type": "team",
+        "participants": [
+            "Kalmani",
+            "Ethan Bennett",
+            "Emily Stewart"
+        ],
+        "name": "Backend Refactor Squad",
+        "lastMessage": "Let's finalize the new structure this week."
+    },
+    "16": {
+        "id": "16",
+        "type": "team",
+        "participants": [
+            "Kalmani",
+            "Sophia Harper",
+            "Michael Lee"
+        ],
+        "name": "Frontend Overhaul Group",
+        "lastMessage": "The new UI components are shaping up!"
+    },
+    "17": {
+        "id": "17",
+        "type": "team",
+        "participants": [
+            "Kalmani",
+            "Lily Johnson",
+            "Noah Miller"
+        ],
+        "name": "Data Analysis Team",
+        "lastMessage": "The data pipeline is set up, ready for testing."
+    },
+    "18": {
+        "id": "18",
+        "type": "team",
+        "participants": [
+            "Kalmani",
+            "Amelia Garcia",
+            "Lucas Rivera"
+        ],
+        "name": "Performance Optimization Team",
+        "lastMessage": "We've identified some bottlenecks."
+    }
+}

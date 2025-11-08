@@ -4,13 +4,19 @@
     font-weight: normal;
     font-style: normal;
 }
+:root{
+    --nav-green: #3C8C6E; /* existing project green */
+    --nav-brown: #8B5E3C; /* brown for hover */
+    --nav-white: #ffffff;
+    --nav-black: #000000;
+}
 
 nav {
     margin: 27px auto;
     position: relative;
     width: 600px;
     height: 50px;
-    background-color: #FFFFFF;
+    background-color: var(--nav-white);
     border-radius: 12px;
     z-index: 999;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -20,9 +26,10 @@ nav {
     justify-content: center;
     gap: 0;
     flex-wrap: nowrap;
-    /* prevent items from wrapping to next line */
+    /* nav is centered; pfp floats separately in the top-right of the viewport */
 }
 
+/* navbar item base */
 nav .navbar-item {
     line-height: 50px;
     height: 100%;
@@ -35,16 +42,29 @@ nav .navbar-item {
     text-decoration: none;
     text-transform: uppercase;
     text-align: center;
-    color: #1F2937;
+    color: var(--nav-black);
+    background: transparent;
     cursor: pointer;
     font-family: 'MagnumSans', sans-serif;
     font-weight: 500;
+    padding: 0 18px;
+    border-radius: 10px;
+    border: none; /* reset for button */
 }
 
+/* hover state: brown background, white text */
 nav .navbar-item:hover {
-    color: #2457B2;
+    background-color: var(--nav-brown);
+    color: var(--nav-white);
 }
 
+/* selected state */
+.navbar-item.active {
+    background-color: var(--nav-green);
+    color: var(--nav-white);
+}
+
+/* small animation element (kept for compatibility) */
 nav .animation {
     position: absolute;
     height: 100%;
@@ -54,82 +74,23 @@ nav .animation {
     border-radius: 12px;
 }
 
-.navbar-item:nth-child(1) {
-    width: 120px;
+/* Floating profile picture separate from nav: top-right corner of viewport */
+.pfp-floating{
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    width: 64px; /* increased size */
+    height: 64px; /* increased size */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 9999;
 }
-
-.navbar-item:nth-child(2) {
-    width: 120px;
-}
-
-.navbar-item:nth-child(3) {
-    width: 120px;
-}
-
-.navbar-item:nth-child(4) {
-    width: 120px;
-}
-
-.navbar-item:nth-child(5) {
-    width: 120px;
-}
-
-nav .navbar-item:nth-child(1):hover~.animation {
-    width: 120px;
-    left: 0;
-    background-color: #3C8C6E;
-}
-
-nav .navbar-item:nth-child(2):hover~.animation {
-    width: 120px;
-    left: 120px;
-    background-color: #8B5E3C;
-}
-
-nav .navbar-item:nth-child(3):hover~.animation {
-    width: 120px;
-    left: 240px;
-    background-color: #2457B2;
-}
-
-nav .navbar-item:nth-child(4):hover~.animation {
-    width: 120px;
-    left: 360px;
-    background-color: #2563EB;
-}
-
-nav .navbar-item:nth-child(5):hover~.animation {
-    width: 120px;
-    left: 480px;
-    background-color: #8B5E3C;
-}
-
-span {
-    color: #3C8C6E;
-}
-
-
-.navbar-item.active {
-    border-radius: 12px;
-    color: white;
-}
-
-.navbar-item:nth-child(1).active {
-    background-color: #3C8C6E;
-}
-
-.navbar-item:nth-child(2).active {
-    background-color: #8B5E3C;
-}
-
-.navbar-item:nth-child(5).active {
-    background-color: #8B5E3C;
-}
-
-.navbar-item:nth-child(4).active {
-    background-color: #2563EB;
-}
-
-.navbar-item:nth-child(5).active {
-    background-color: #2457B2;
+.pfp-floating img{
+    width: 60px; /* increased size */
+    height: 60px; /* increased size */
+    border-radius: 50%;
+    object-fit: cover;
+    border: 1px solid rgba(0,0,0,0.08);
 }

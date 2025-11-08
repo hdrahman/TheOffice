@@ -4,9 +4,12 @@
     font-weight: normal;
     font-style: normal;
 }
-:root{
-    --nav-green: #3C8C6E; /* existing project green */
-    --nav-brown: #8B5E3C; /* brown for hover */
+
+:root {
+    --nav-green: #3C8C6E;
+    /* existing project green */
+    --nav-brown: #8B5E3C;
+    /* brown for hover */
     --nav-white: #ffffff;
     --nav-black: #000000;
 }
@@ -49,7 +52,8 @@ nav .navbar-item {
     font-weight: 500;
     padding: 0 18px;
     border-radius: 10px;
-    border: none; /* reset for button */
+    border: none;
+    /* reset for button */
 }
 
 /* hover state: brown background, white text */
@@ -75,22 +79,27 @@ nav .animation {
 }
 
 /* Floating profile picture separate from nav: top-right corner of viewport */
-.pfp-floating{
+.pfp-floating {
     position: fixed;
     top: 24px;
     right: 24px;
-    width: 64px; /* increased size */
-    height: 64px; /* increased size */
+    width: 64px;
+    /* increased size */
+    height: 64px;
+    /* increased size */
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
     z-index: 9999;
 }
-.pfp-floating img{
-    width: 60px; /* increased size */
-    height: 60px; /* increased size */
+
+.pfp-floating img {
+    width: 60px;
+    /* increased size */
+    height: 60px;
+    /* increased size */
     border-radius: 50%;
     object-fit: cover;
-    border: 1px solid rgba(0,0,0,0.08);
+    border: 1px solid rgba(0, 0, 0, 0.08);
 }

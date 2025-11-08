@@ -3,10 +3,11 @@ from flask_cors import CORS, cross_origin
 import json
 import os
 import fitz  # PyMuPDF for PDF processing
-import faiss
-import numpy as np
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-from sentence_transformers import SentenceTransformer
+from openai import OpenAI
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
@@ -28,18 +29,17 @@ MESSAGES_FILE = 'data/messages.json'
 USER_FILE = 'data/user.json'
 EVENTS_FILE = 'data/events.json'
 
-# Load Embedding Model
-embedding_model = SentenceTransformer("sentence-transformers/multi-qa-mpnet-base-dot-v1")  # Optimized for QA tasks
-embedding_index = None
+# Initialize OpenAI client
+api_key = os.getenv('OPENAI_API_KEY')
+if not api_key:
+    print("WARNING: OPENAI_API_KEY not found in environment variables!")
+    print("Please create a .env file with your OpenAI API key.")
+    client = None
+else:
+    client = OpenAI(api_key=api_key)
 
-# Load a large generative model for question answering
-qa_model_name = "google/flan-t5-large"
-qa_tokenizer = AutoTokenizer.from_pretrained(qa_model_name)
-qa_model = AutoModelForSeq2SeqLM.from_pretrained(qa_model_name)
-
-# Global variables to store chunks and embeddings
-chunks = []
-chunk_embeddings = []
+# Global variable to store uploaded PDF text
+pdf_text_content = None
 
 def load_data(file_path):
     if os.path.exists(file_path):
@@ -115,13 +115,6 @@ def extract_text_from_pdf(pdf_data):
             text += page.get_text("text") + "\n"
     return text
 
-# Function to chunk text into smaller pieces with overlap
-def chunk_text(text, chunk_size=500, overlap=100):
-    words = text.split()
-    chunks = []
-    for i in range(0, len(words), chunk_size - overlap):
-        chunks.append(" ".join(words[i:i + chunk_size]))
-    return chunks
 
 @app.after_request
 def add_cors_headers(response):
@@ -135,56 +128,64 @@ def add_cors_headers(response):
 @app.route("/upload_pdf", methods=["POST"])
 @cross_origin(origin="http://localhost:5173")
 def upload_pdf():
-    global embedding_index, chunks, chunk_embeddings
-    
+    global pdf_text_content
+
     pdf_file = request.files.get("file")
     if not pdf_file:
         return jsonify({"error": "No file uploaded"}), 400
 
-    pdf_text = extract_text_from_pdf(pdf_file.read())
-    chunks = chunk_text(pdf_text)
+    # Extract text from PDF and store it
+    pdf_text_content = extract_text_from_pdf(pdf_file.read())
 
-    # Generate embeddings for each chunk
-    chunk_embeddings = [embedding_model.encode(chunk) for chunk in chunks]
-    chunk_embeddings = np.array(chunk_embeddings)
-
-    # Initialize FAISS index
-    embedding_dim = chunk_embeddings.shape[1]
-    embedding_index = faiss.IndexFlatL2(embedding_dim)
-    embedding_index.add(chunk_embeddings)
+    if not pdf_text_content or len(pdf_text_content.strip()) == 0:
+        return jsonify({"error": "Could not extract text from PDF"}), 400
 
     return jsonify({"message": "PDF uploaded and processed successfully"}), 200
 
 @app.route("/ask_question", methods=["POST"])
 def ask_question():
-    global embedding_index, chunks, chunk_embeddings
+    global pdf_text_content
+
+    if not client:
+        return jsonify({"error": "OpenAI API key not configured. Please set OPENAI_API_KEY in .env file"}), 500
 
     data = request.json
     question = data.get("question")
+
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
 
     # Check if the question has a hardcoded answer
     if question in hardcoded_answers:
         return jsonify({"answer": hardcoded_answers[question]}), 200
 
-    if not embedding_index or not chunks:
-        return jsonify({"error": "No PDF has been uploaded yet"}), 400
+    # Build the prompt for OpenAI
+    if pdf_text_content:
+        # If PDF has been uploaded, use it as context
+        system_message = "You are a helpful assistant that answers questions based on the provided document context. Give clear, concise answers."
+        user_message = f"Based on the following document, answer this question: {question}\n\nDocument:\n{pdf_text_content[:8000]}"  # Limit context to avoid token limits
+    else:
+        # No PDF uploaded, answer general questions
+        system_message = "You are a helpful assistant for a virtual office platform. Answer questions about workplace topics, onboarding, and general office-related queries."
+        user_message = question
 
-    # Otherwise, continue with embedding model and T5 model for answering
-    question_embedding = embedding_model.encode(question)
-    _, indices = embedding_index.search(np.array([question_embedding]), k=1)
-    most_relevant_chunk = chunks[indices[0][0]]
+    try:
+        # Call OpenAI API
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message}
+            ],
+            max_tokens=300,
+            temperature=0.7
+        )
 
-    input_text = f"Generate a detailed answer to the following question based on the provided context. Question: {question} Context: {most_relevant_chunk}"
-    inputs = qa_tokenizer(input_text, return_tensors="pt")
-    outputs = qa_model.generate(
-        **inputs,
-        max_length=200,
-        num_beams=5,
-        no_repeat_ngram_size=2
-    )
-    answer = qa_tokenizer.decode(outputs[0], skip_special_tokens=True)
+        answer = response.choices[0].message.content
+        return jsonify({"answer": answer}), 200
 
-    return jsonify({"answer": answer}), 200
+    except Exception as e:
+        return jsonify({"error": f"Error calling OpenAI API: {str(e)}"}), 500
 
 def load_events():
     """Load events from the JSON file."""

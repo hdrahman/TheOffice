@@ -3,6 +3,7 @@ import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { Button, Dialog, DialogActions, DialogContent, TextField, DialogTitle } from '@mui/material';
+import api from '../lib/api';
 import '../css/Scheduler.css';
 
 const localizer = momentLocalizer(moment);
@@ -16,7 +17,7 @@ const Scheduler = () => {
     const events = [];
     const today = moment();
     const endOfMonth = moment().endOf('month');
-  
+
     // Morning Stand-Ups: Only on Mondays, Wednesdays, and Thursdays
     for (let day = today.clone(); day.isBefore(endOfMonth); day.add(1, 'days')) {
       if (day.isoWeekday() === 1 || day.isoWeekday() === 3 || day.isoWeekday() === 4) {
@@ -30,7 +31,7 @@ const Scheduler = () => {
         });
       }
     }
-  
+
     // Weekly Team Sync: Every Tuesday
     for (let day = today.clone().startOf('month'); day.isBefore(endOfMonth); day.add(1, 'weeks')) {
       events.push({
@@ -42,7 +43,7 @@ const Scheduler = () => {
         description: 'Weekly sync to discuss goals and challenges',
       });
     }
-  
+
     // Project Review on Thursdays
     for (let day = today.clone().startOf('month'); day.isBefore(endOfMonth); day.add(1, 'weeks')) {
       events.push({
@@ -54,7 +55,7 @@ const Scheduler = () => {
         description: 'Review progress, discuss next steps, and align on project milestones',
       });
     }
-  
+
     // Monthly Planning Meeting: Third Thursday of the month
     const planningMeetingDate = today.clone().startOf('month').add(2, 'weeks').isoWeekday(4); // Third Thursday
     events.push({
@@ -65,7 +66,7 @@ const Scheduler = () => {
       person: 'Leadership Team',
       description: 'Monthly meeting to plan projects and set goals',
     });
-  
+
     // Bi-weekly Brainstorming Session on Thursdays
     for (let day = today.clone().startOf('month'); day.isBefore(endOfMonth); day.add(2, 'weeks')) {
       events.push({
@@ -77,7 +78,7 @@ const Scheduler = () => {
         description: 'Brainstorming for new features and improvements',
       });
     }
-  
+
     // Additional Ad-hoc Meeting on a Thursday
     events.push({
       id: events.length,
@@ -87,7 +88,7 @@ const Scheduler = () => {
       person: 'Project Leads',
       description: 'Spontaneous planning meeting to adjust project timelines',
     });
-  
+
     return events;
   };
 
@@ -97,18 +98,15 @@ const Scheduler = () => {
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:5000/events");
-        if (response.ok) {
-          const backendEvents = await response.json();
-          const parsedBackendEvents = backendEvents.map(event => ({
-            ...event,
-            start: new Date(event.start),
-            end: new Date(event.end),
-          }));
-          setEvents(prevEvents => [...prevEvents, ...parsedBackendEvents]);
-        } else {
-          console.error("Failed to fetch events");
-        }
+        const backendEvents = await api.getEvents();
+        const parsedBackendEvents = backendEvents.map(event => ({
+          ...event,
+          start: new Date(event.start_time || event.start),
+          end: new Date(event.end_time || event.end),
+          title: event.title,
+          description: event.description || '',
+        }));
+        setEvents(prevEvents => [...prevEvents, ...parsedBackendEvents]);
       } catch (error) {
         console.error("Error fetching events:", error);
       }
@@ -131,38 +129,33 @@ const Scheduler = () => {
 
   const handleAddEvent = async () => {
     if (isAddingEvent) {
-        return; // Prevent duplicate execution 
-    } 
+      return; // Prevent duplicate execution
+    }
     setIsAddingEvent(true);
     const newEventData = {
       title: newEvent.title,
       start: newEvent.start.toISOString(),
       end: newEvent.end.toISOString(),
-      person: newEvent.person,
       description: newEvent.description,
+      location: newEvent.person, // Using person field as location
     };
 
     try {
-      const response = await fetch("http://127.0.0.1:5000/events", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(newEventData),
-      });
-
-      if (response.ok) {
-        const savedEvent = await response.json();
-        setEvents(prevEvents => [
-          ...prevEvents,
-          { ...savedEvent, start: new Date(savedEvent.start), end: new Date(savedEvent.end) }
-        ]);
-        setDialogOpen(false);  // Close dialog only after successful addition
-      } else {
-        console.error("Failed to save event");
-      }
+      const savedEvent = await api.createEvent(newEventData);
+      setEvents(prevEvents => [
+        ...prevEvents,
+        {
+          ...savedEvent,
+          start: new Date(savedEvent.start_time || savedEvent.start),
+          end: new Date(savedEvent.end_time || savedEvent.end),
+          person: savedEvent.location
+        }
+      ]);
+      setDialogOpen(false);  // Close dialog only after successful addition
+      setIsAddingEvent(false);
     } catch (error) {
       console.error("Error saving event:", error);
+      setIsAddingEvent(false);
     }
   };
 
@@ -175,14 +168,22 @@ const Scheduler = () => {
   );
 
   return (
-    <div style={{ padding: '2rem', backgroundColor: 'white', margin: '2rem', borderRadius: '8px' }}>
+    <div style={{
+      padding: '1.5rem',
+      backgroundColor: '#FFFFFF',
+      margin: '1rem auto',
+      borderRadius: '16px',
+      maxWidth: '1400px',
+      boxShadow: '0 2px 12px rgba(0, 0, 0, 0.06)',
+      border: '1px solid #E8E2D9'
+    }}>
       <Calendar
         selectable
         localizer={localizer}
         events={events}
         startAccessor="start"
         endAccessor="end"
-        style={{ height: 600 }}
+        style={{ height: 'calc(100vh - 200px)', minHeight: '500px' }}
         onSelectSlot={handleSelectSlot}
         onSelectEvent={(event) => alert(event.description)}
         components={{

@@ -88,11 +88,11 @@ const ChatPopup = () => {
   };
 
   return (
-    <div className="fixed bottom-4 right-4 bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="fixed bottom-4 right-4 bg-surface rounded-2xl shadow-2xl overflow-hidden border border-border">
       {!isContactListOpen && !selectedConversation && (
         <div
           onClick={() => setIsContactListOpen(true)}
-          className="cursor-pointer w-72 bg-white text-black text-center py-2 rounded-lg shadow-lg hover:bg-blue-300 hover:text-black"
+          className="cursor-pointer w-72 bg-primary text-white text-center py-3 rounded-2xl shadow-lg hover:bg-primary-hover transition duration-200 font-medium"
         >
           Contacts
         </div>
@@ -100,10 +100,10 @@ const ChatPopup = () => {
 
       {isContactListOpen && !selectedConversation && (
         <div className="p-3 space-y-3 overflow-y-auto h-72 w-72">
-          <div className="sticky top-0 bg-white z-10 p-2 border-b">
+          <div className="sticky top-0 bg-surface z-10 p-2 border-b border-border">
             <div className="flex justify-between items-center">
-              <div className="font-bold text-gray-700">Conversations</div>
-              <button onClick={() => setIsContactListOpen(false)} className="text-gray-500 hover:text-gray-800">
+              <div className="font-bold text-text-primary">Conversations</div>
+              <button onClick={() => setIsContactListOpen(false)} className="text-text-secondary hover:text-text-primary">
                 ✕
               </button>
             </div>
@@ -111,13 +111,13 @@ const ChatPopup = () => {
           {conversations.map((conv) => (
             <div
               key={conv.id}
-              className="flex items-center space-x-2 p-2 rounded-lg cursor-pointer hover:bg-gray-100"
+              className="flex items-center space-x-2 p-2 rounded-lg cursor-pointer hover:bg-primary-tint transition duration-200"
               onClick={() => handleConversationSelect(conv)}
             >
-              <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+              <div className="w-8 h-8 bg-brown-tint rounded-full"></div>
               <div>
-                <div className="font-medium text-gray-800">{conv.name}</div>
-                <div className="text-xs text-gray-500">{conv.lastMessage}</div>
+                <div className="font-medium text-text-primary">{conv.name}</div>
+                <div className="text-xs text-text-secondary">{conv.lastMessage}</div>
               </div>
             </div>
           ))}
@@ -138,24 +138,23 @@ const ChatPopup = () => {
                 ←
               </button>
               <div>
-                <div className="font-medium text-gray-800">{selectedConversation.name}</div>
+                <div className="font-medium text-text-primary">{selectedConversation.name}</div>
               </div>
             </div>
-            <button onClick={() => setSelectedConversation(null)} className="text-gray-500 hover:text-gray-800">✕</button>
+            <button onClick={() => setSelectedConversation(null)} className="text-text-secondary hover:text-text-primary">✕</button>
           </div>
 
-          <div className="flex-1 p-4 space-y-3 overflow-y-auto bg-gray-50">
+          <div className="flex-1 p-4 space-y-3 overflow-y-auto bg-background">
             {messages.map((msg, index) => (
               <div
                 key={index}
                 className={`p-2 ${msg.senderId === user?.userId ? 'text-right' : 'text-left'}`}
               >
                 <div
-                  className={`inline-block p-2 rounded-lg ${
-                    msg.senderId === user?.userId
-                      ? 'bg-blue-500 text-white ml-auto' // Right-aligned styling for current user
-                      : 'bg-gray-200 text-gray-800 mr-auto' // Left-aligned styling for others
-                  }`}
+                  className={`inline-block p-2 rounded-lg ${msg.senderId === user?.userId
+                    ? 'bg-primary text-white ml-auto' // Right-aligned styling for current user
+                    : 'bg-green-tint text-text-primary mr-auto' // Left-aligned styling for others
+                    }`}
                 >
                   {msg.text}
                 </div>
@@ -163,15 +162,15 @@ const ChatPopup = () => {
             ))}
           </div>
 
-          <div className="p-3 border-t border-gray-200 flex items-center space-x-2">
+          <div className="p-3 border-t border-border flex items-center space-x-2">
             <input
               type="text"
               placeholder="Type a message..."
-              className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:border-blue-300"
+              className="flex-1 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-focus focus:border-transparent bg-surface"
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
             />
-            <button onClick={sendMessage} className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600">
+            <button onClick={sendMessage} className="bg-primary text-white px-3 py-2 rounded-lg hover:bg-primary-hover transition duration-200 font-medium">
               Send
             </button>
           </div>

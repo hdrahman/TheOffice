@@ -10,10 +10,12 @@ nav {
     position: relative;
     width: 600px;
     height: 50px;
-    background-color: white;
-    border-radius: 8px;
+    background-color: #FFFFFF;
+    border-radius: 12px;
     font-size: 0;
     z-index: 999;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    border: 1px solid #E8E2D9;
 }
 
 nav .navbar-item {
@@ -26,13 +28,14 @@ nav .navbar-item {
     text-decoration: none;
     text-transform: uppercase;
     text-align: center;
-    color: #614879;
+    color: #1F2937;
     cursor: pointer;
     font-family: 'MagnumSans', sans-serif;
+    font-weight: 500;
 }
 
 nav .navbar-item:hover {
-    color: #614879;
+    color: #2457B2;
 }
 
 nav .animation {
@@ -41,7 +44,7 @@ nav .animation {
     top: 0;
     z-index: 0;
     transition: all .3s ease 0s;
-    border-radius: 8px;
+    border-radius: 12px;
 }
 
 .navbar-item:nth-child(1) {
@@ -67,58 +70,59 @@ nav .animation {
 nav .navbar-item:nth-child(1):hover~.animation {
     width: 120px;
     left: 0;
-    background-color: #1abc9c;
+    background-color: #3C8C6E;
 }
 
 nav .navbar-item:nth-child(2):hover~.animation {
     width: 120px;
     left: 120px;
-    background-color: #e74c3c;
+    background-color: #8B5E3C;
 }
 
 nav .navbar-item:nth-child(3):hover~.animation {
     width: 120px;
     left: 240px;
-    background-color: #3498db;
+    background-color: #2457B2;
 }
 
 nav .navbar-item:nth-child(4):hover~.animation {
     width: 120px;
     left: 360px;
-    background-color: #E0467B;
+    background-color: #2563EB;
 }
 
 nav .navbar-item:nth-child(5):hover~.animation {
     width: 120px;
     left: 480px;
-    background-color: #e67e22;
+    background-color: #F59E0B;
 }
 
 span {
-    color: #2BD6B4;
+    color: #3C8C6E;
 }
 
 
 .navbar-item.active {
-    border-radius: 8px;
+    border-radius: 12px;
+    color: white;
 }
 
 .navbar-item:nth-child(1).active {
-    background-color: #1abc9c;
+    background-color: #3C8C6E;
 }
 
 .navbar-item:nth-child(2).active {
-    background-color: #e74c3c;
+    background-color: #8B5E3C;
 }
 
 .navbar-item:nth-child(3).active {
-    background-color: #3498db;
+    background-color: #2457B2;
 }
 
 .navbar-item:nth-child(4).active {
-    background-color: #E0467B;
+    background-color: #2563EB;
 }
 
 .navbar-item:nth-child(5).active {
-    background-color: #e67e22;
+    background-color: #F59E0B;
 }

@@ -1,389 +1,556 @@
 from flask import Flask, request, jsonify
-from flask_cors import CORS, cross_origin
-import json
+from flask_cors import CORS
+from flask_socketio import SocketIO, emit, join_room, leave_room
 import os
 import fitz  # PyMuPDF for PDF processing
 from openai import OpenAI
 from dotenv import load_dotenv
+from supabase import create_client, Client
+from functools import wraps
+from datetime import datetime
+import uuid
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-hardcoded_answers = {
-    "What is this project?":
-      "This project is to build an Account Onboarding and Identity Verification System for Dundermifflin. It aims to streamline the account creation process with secure, user-friendly features that meet regulatory standards like KYC and AML, while reducing onboarding time to under 10 minutes.",
-    "How will user data be protected?":
-      "User data is secured with AES-256 encryption for both storage and transfer, multi-factor authentication (MFA), and GDPR-compliant handling, ensuring robust security throughout the onboarding process.",
-    "Who is the best to contact for assistance with an API issue?":
-      "For debugging API issues, the primary point of contact would be the Backend Tech Lead. They oversee the server-side code and API development and can provide guidance on troubleshooting, best practices, and debugging strategies. If the issue involves integration with frontend components, the Frontend Tech Lead can also offer insights into client-server communication aspects.",
-    "What are the core technologies?":
-      "The team primarily uses React for the frontend, Node.js for the backend, PostgreSQL and MongoDB for databases, and AWS for infrastructure, with containerization handled by Docker and Kubernetes."
-}
+# Initialize SocketIO with CORS
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 
-# Paths to JSON files
-CONVERSATIONS_FILE = 'data/conversations.json'
-MESSAGES_FILE = 'data/messages.json'
-USER_FILE = 'data/user.json'
-EVENTS_FILE = 'data/events.json'
-PDF_CHATS_FILE = 'data/pdf_chats.json'
+# Initialize Supabase client
+supabase_url = os.getenv('SUPABASE_URL')
+supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
+
+if not supabase_url or not supabase_key:
+    print("WARNING: Supabase credentials not found!")
+    supabase: Client = None
+else:
+    supabase: Client = create_client(supabase_url, supabase_key)
+    print(f"✓ Connected to Supabase: {supabase_url}")
 
 # Initialize OpenAI client
-api_key = os.getenv('OPENAI_API_KEY')
-if not api_key:
-    print("WARNING: OPENAI_API_KEY not found in environment variables!")
-    print("Please create a .env file with your OpenAI API key.")
-    client = None
+openai_key = os.getenv('OPENAI_API_KEY')
+if not openai_key:
+    print("WARNING: OPENAI_API_KEY not found!")
+    openai_client = None
 else:
-    client = OpenAI(api_key=api_key)
+    openai_client = OpenAI(api_key=openai_key)
+    print("✓ OpenAI client initialized")
 
-# Global variable to store uploaded PDF text (for backward compatibility)
-pdf_text_content = None
-current_pdf_session = None
+# ============================================
+# AUTH MIDDLEWARE
+# ============================================
 
-def load_data(file_path):
-    if os.path.exists(file_path):
-        with open(file_path, 'r') as file:
-            return json.load(file)
-    return {}
+def require_auth(f):
+    """Decorator to require authentication for routes"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        auth_header = request.headers.get('Authorization')
 
-def save_data(file_path, data):
-    with open(file_path, 'w') as file:
-        json.dump(data, file, indent=4)
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({"error": "Missing or invalid authorization header"}), 401
 
-# Route to handle login and save user data
-@app.route('/login', methods=['POST'])
+        token = auth_header.split('Bearer ')[1]
+
+        try:
+            # Verify JWT token with Supabase
+            user = supabase.auth.get_user(token)
+            request.user_id = user.user.id
+            request.user = user.user
+            return f(*args, **kwargs)
+        except Exception as e:
+            return jsonify({"error": "Invalid or expired token", "details": str(e)}), 401
+
+    return decorated_function
+
+# ============================================
+# AUTH ROUTES
+# ============================================
+
+@app.route('/auth/signup', methods=['POST'])
+def signup():
+    """Register a new user"""
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
+    username = data.get('username')
+    full_name = data.get('full_name', '')
+
+    if not email or not password or not username:
+        return jsonify({"error": "Email, password, and username are required"}), 400
+
+    try:
+        # Sign up with Supabase Auth
+        response = supabase.auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": {
+                "data": {
+                    "username": username,
+                    "full_name": full_name
+                }
+            }
+        })
+
+        if response.user:
+            return jsonify({
+                "user": {
+                    "id": response.user.id,
+                    "email": response.user.email,
+                    "username": username,
+                    "full_name": full_name
+                },
+                "session": {
+                    "access_token": response.session.access_token,
+                    "refresh_token": response.session.refresh_token
+                } if response.session else None
+            }), 201
+        else:
+            return jsonify({"error": "Signup failed"}), 400
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/auth/login', methods=['POST'])
 def login():
-    user_data = request.json
-    user = {
-        "userId": user_data.get("username"),
-        "name": f"User {user_data.get('username')}"
-    }
-    save_data(USER_FILE, user)
-    return jsonify(user), 201
+    """Log in an existing user"""
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
 
-# Route to retrieve the current user data
-@app.route('/user', methods=['GET'])
-def get_user():
-    user = load_data(USER_FILE)
-    return jsonify(user)
+    if not email or not password:
+        return jsonify({"error": "Email and password are required"}), 400
 
-# Route to fetch all conversations
+    try:
+        # Sign in with Supabase Auth
+        response = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
+
+        if response.user and response.session:
+            # Get user profile from database
+            user_profile = supabase.table('users').select('*').eq('id', response.user.id).execute()
+
+            profile = user_profile.data[0] if user_profile.data else {
+                "id": response.user.id,
+                "email": response.user.email,
+                "username": response.user.email.split('@')[0]
+            }
+
+            return jsonify({
+                "user": profile,
+                "session": {
+                    "access_token": response.session.access_token,
+                    "refresh_token": response.session.refresh_token
+                }
+            }), 200
+        else:
+            return jsonify({"error": "Invalid credentials"}), 401
+
+    except Exception as e:
+        return jsonify({"error": "Invalid credentials", "details": str(e)}), 401
+
+@app.route('/auth/logout', methods=['POST'])
+@require_auth
+def logout():
+    """Log out the current user"""
+    try:
+        supabase.auth.sign_out()
+        return jsonify({"message": "Logged out successfully"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.route('/auth/me', methods=['GET'])
+@require_auth
+def get_current_user():
+    """Get current user profile"""
+    try:
+        user_profile = supabase.table('users').select('*').eq('id', request.user_id).execute()
+
+        if user_profile.data:
+            return jsonify(user_profile.data[0]), 200
+        else:
+            return jsonify({"error": "User not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================================
+# CONVERSATIONS ROUTES
+# ============================================
+
 @app.route('/conversations', methods=['GET'])
-def get_all_conversations():
-    conversations = load_data(CONVERSATIONS_FILE)
-    return jsonify(list(conversations.values())), 200
+@require_auth
+def get_conversations():
+    """Get all conversations for the current user"""
+    try:
+        # Get conversations where user is a participant
+        result = supabase.table('conversation_participants').select(
+            'conversation_id, conversations(*)'
+        ).eq('user_id', request.user_id).execute()
 
-# Route to retrieve a single conversation by its ID
+        conversations = [item['conversations'] for item in result.data if item.get('conversations')]
+
+        return jsonify(conversations), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/conversations/<conversation_id>', methods=['GET'])
+@require_auth
 def get_conversation(conversation_id):
-    conversations = load_data(CONVERSATIONS_FILE)
-    conversation = conversations.get(conversation_id, {})
-    return jsonify(conversation)
+    """Get a specific conversation"""
+    try:
+        # Verify user is participant
+        participant = supabase.table('conversation_participants').select('*').eq(
+            'conversation_id', conversation_id
+        ).eq('user_id', request.user_id).execute()
 
-# Route to fetch messages for a specific conversation
+        if not participant.data:
+            return jsonify({"error": "Not authorized"}), 403
+
+        conversation = supabase.table('conversations').select('*').eq('id', conversation_id).execute()
+
+        if conversation.data:
+            return jsonify(conversation.data[0]), 200
+        else:
+            return jsonify({"error": "Conversation not found"}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/conversations', methods=['POST'])
+@require_auth
+def create_conversation():
+    """Create a new conversation"""
+    data = request.json
+
+    try:
+        # Create conversation
+        conversation = supabase.table('conversations').insert({
+            "type": data.get('type', 'direct'),
+            "name": data.get('name'),
+            "description": data.get('description'),
+            "created_by": request.user_id
+        }).execute()
+
+        conv_id = conversation.data[0]['id']
+
+        # Add creator as participant
+        supabase.table('conversation_participants').insert({
+            "conversation_id": conv_id,
+            "user_id": request.user_id,
+            "role": "admin"
+        }).execute()
+
+        # Add other participants if provided
+        participant_ids = data.get('participant_ids', [])
+        if participant_ids:
+            participants = [
+                {"conversation_id": conv_id, "user_id": uid}
+                for uid in participant_ids
+            ]
+            supabase.table('conversation_participants').insert(participants).execute()
+
+        return jsonify(conversation.data[0]), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================================
+# MESSAGES ROUTES
+# ============================================
+
 @app.route('/conversations/<conversation_id>/messages', methods=['GET'])
-def get_conversation_messages(conversation_id):
-    messages = load_data(MESSAGES_FILE)
-    conversation_messages = messages.get(conversation_id, [])
-    return jsonify(conversation_messages), 200
+@require_auth
+def get_messages(conversation_id):
+    """Get messages for a conversation"""
+    try:
+        # Verify user is participant
+        participant = supabase.table('conversation_participants').select('*').eq(
+            'conversation_id', conversation_id
+        ).eq('user_id', request.user_id).execute()
 
-# Route to add a new message to a conversation
+        if not participant.data:
+            return jsonify({"error": "Not authorized"}), 403
+
+        # Get messages with sender info
+        messages = supabase.table('messages').select(
+            '*, users(id, username, full_name, avatar_url)'
+        ).eq('conversation_id', conversation_id).order('created_at', desc=False).execute()
+
+        return jsonify(messages.data), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/conversations/<conversation_id>/messages', methods=['POST'])
-def post_conversation_message(conversation_id):
-    message_data = request.json
-    messages = load_data(MESSAGES_FILE)
+@require_auth
+def send_message(conversation_id):
+    """Send a message to a conversation"""
+    data = request.json
+    content = data.get('content') or data.get('text')  # Support both field names
 
-    new_message = {
-        "text": message_data.get("text"),
-        "senderId": message_data.get("senderId"),
-        "timestamp": message_data.get("timestamp")
-    }
+    if not content:
+        return jsonify({"error": "Message content is required"}), 400
 
-    if conversation_id not in messages:
-        messages[conversation_id] = []
-    messages[conversation_id].append(new_message)
+    try:
+        # Verify user is participant
+        participant = supabase.table('conversation_participants').select('*').eq(
+            'conversation_id', conversation_id
+        ).eq('user_id', request.user_id).execute()
 
-    save_data(MESSAGES_FILE, messages)
-    return jsonify(new_message), 201
+        if not participant.data:
+            return jsonify({"error": "Not authorized"}), 403
 
-# Function to extract text from PDF
+        # Insert message
+        message = supabase.table('messages').insert({
+            "conversation_id": conversation_id,
+            "sender_id": request.user_id,
+            "content": content
+        }).execute()
+
+        # Get message with sender info
+        message_with_sender = supabase.table('messages').select(
+            '*, users(id, username, full_name, avatar_url)'
+        ).eq('id', message.data[0]['id']).execute()
+
+        # Emit WebSocket event to conversation room
+        socketio.emit('new_message', {
+            'conversation_id': conversation_id,
+            'message': message_with_sender.data[0]
+        }, room=conversation_id)
+
+        return jsonify(message_with_sender.data[0]), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================================
+# EVENTS/CALENDAR ROUTES
+# ============================================
+
+@app.route('/events', methods=['GET'])
+@require_auth
+def get_events():
+    """Get all events for the current user"""
+    try:
+        # Get events created by user or where user is attendee
+        events = supabase.table('events').select('*').eq('created_by', request.user_id).execute()
+
+        # Also get events where user is an attendee
+        attendee_events = supabase.table('event_attendees').select(
+            'events(*)'
+        ).eq('user_id', request.user_id).execute()
+
+        all_events = events.data + [item['events'] for item in attendee_events.data if item.get('events')]
+
+        # Remove duplicates
+        seen = set()
+        unique_events = []
+        for event in all_events:
+            if event['id'] not in seen:
+                seen.add(event['id'])
+                unique_events.append(event)
+
+        return jsonify(unique_events), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/events', methods=['POST'])
+@require_auth
+def create_event():
+    """Create a new event"""
+    data = request.json
+
+    if not data.get('title') or not data.get('start') or not data.get('end'):
+        return jsonify({"error": "Title, start, and end are required"}), 400
+
+    try:
+        # Convert start/end to proper format if needed
+        start_time = data.get('start')
+        end_time = data.get('end')
+
+        event = supabase.table('events').insert({
+            "title": data.get('title'),
+            "description": data.get('description'),
+            "start_time": start_time,
+            "end_time": end_time,
+            "location": data.get('location'),
+            "created_by": request.user_id
+        }).execute()
+
+        # Add attendees if provided
+        attendee_ids = data.get('attendee_ids', [])
+        if attendee_ids:
+            attendees = [
+                {"event_id": event.data[0]['id'], "user_id": uid, "status": "invited"}
+                for uid in attendee_ids
+            ]
+            supabase.table('event_attendees').insert(attendees).execute()
+
+        return jsonify(event.data[0]), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# ============================================
+# PDF CHATBOT ROUTES (Keep existing functionality)
+# ============================================
+
 def extract_text_from_pdf(pdf_data):
+    """Extract text from PDF"""
     text = ""
     with fitz.open(stream=pdf_data, filetype="pdf") as doc:
         for page in doc:
             text += page.get_text("text") + "\n"
     return text
 
-
-@app.after_request
-def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = 'http://localhost:5173'
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Methods'] = 'POST, GET, OPTIONS, PUT, DELETE'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
-    return response
-
-# Endpoint to upload PDF and prepare it for Q&A
 @app.route("/upload_pdf", methods=["POST"])
-@cross_origin(origin="http://localhost:5173")
+@require_auth
 def upload_pdf():
-    global pdf_text_content, current_pdf_session
-
-    if not client:
+    """Upload PDF and generate summary"""
+    if not openai_client:
         return jsonify({"error": "OpenAI API key not configured"}), 500
 
     pdf_file = request.files.get("file")
     if not pdf_file:
         return jsonify({"error": "No file uploaded"}), 400
 
-    # Extract text from PDF and store it
-    pdf_text_content = extract_text_from_pdf(pdf_file.read())
-
-    if not pdf_text_content or len(pdf_text_content.strip()) == 0:
-        return jsonify({"error": "Could not extract text from PDF"}), 400
-
-    # Generate a summary of the PDF using OpenAI
     try:
-        summary_response = client.chat.completions.create(
+        # Extract text
+        pdf_text = extract_text_from_pdf(pdf_file.read())
+
+        if not pdf_text or len(pdf_text.strip()) == 0:
+            return jsonify({"error": "Could not extract text from PDF"}), 400
+
+        # Generate summary
+        summary_response = openai_client.chat.completions.create(
             model="gpt-4o",
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that summarizes documents. Provide a concise summary highlighting the key points."},
-                {"role": "user", "content": f"Please provide a brief summary of this document:\n\n{pdf_text_content[:8000]}"}
+                {"role": "system", "content": "You are a helpful assistant that summarizes documents."},
+                {"role": "user", "content": f"Summarize this document:\n\n{pdf_text[:8000]}"}
             ],
             max_tokens=200,
             temperature=0.5
         )
         summary = summary_response.choices[0].message.content
+
+        # Store in session (could also store in Supabase)
+        session_id = str(uuid.uuid4())
+
+        return jsonify({
+            "message": "PDF uploaded successfully",
+            "session_id": session_id,
+            "summary": summary,
+            "pdf_name": pdf_file.filename,
+            "pdf_text": pdf_text  # Include for Q&A
+        }), 200
+
     except Exception as e:
-        return jsonify({"error": f"Error generating summary: {str(e)}"}), 500
-
-    # Create a new PDF chat session
-    import uuid
-    from datetime import datetime
-
-    session_id = str(uuid.uuid4())
-    current_pdf_session = session_id
-
-    # Load existing PDF chats
-    pdf_chats = {}
-    if os.path.exists(PDF_CHATS_FILE):
-        with open(PDF_CHATS_FILE, 'r') as f:
-            try:
-                pdf_chats = json.load(f)
-            except json.JSONDecodeError:
-                pdf_chats = {}
-
-    # Store the new session
-    pdf_chats[session_id] = {
-        "pdf_name": pdf_file.filename,
-        "pdf_text": pdf_text_content,
-        "created_at": datetime.now().isoformat(),
-        "messages": [
-            {
-                "role": "assistant",
-                "content": summary,
-                "timestamp": datetime.now().isoformat()
-            }
-        ]
-    }
-
-    # Save to file
-    with open(PDF_CHATS_FILE, 'w') as f:
-        json.dump(pdf_chats, f, indent=4)
-
-    return jsonify({
-        "message": "PDF uploaded and processed successfully",
-        "session_id": session_id,
-        "summary": summary,
-        "pdf_name": pdf_file.filename
-    }), 200
+        return jsonify({"error": f"Error processing PDF: {str(e)}"}), 500
 
 @app.route("/ask_question", methods=["POST"])
+@require_auth
 def ask_question():
-    global pdf_text_content, current_pdf_session
-
-    if not client:
-        return jsonify({"error": "OpenAI API key not configured. Please set OPENAI_API_KEY in .env file"}), 500
+    """Ask a question about uploaded PDF"""
+    if not openai_client:
+        return jsonify({"error": "OpenAI API not configured"}), 500
 
     data = request.json
     question = data.get("question")
-    session_id = data.get("session_id", current_pdf_session)
+    pdf_context = data.get("pdf_text", "")
 
     if not question:
         return jsonify({"error": "No question provided"}), 400
 
-    # Check if the question has a hardcoded answer
-    if question in hardcoded_answers:
-        answer = hardcoded_answers[question]
-    else:
-        # Load the PDF chat session
-        pdf_chats = {}
-        if os.path.exists(PDF_CHATS_FILE) and session_id:
-            with open(PDF_CHATS_FILE, 'r') as f:
-                try:
-                    pdf_chats = json.load(f)
-                except json.JSONDecodeError:
-                    pdf_chats = {}
+    try:
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant that answers questions based on documents."},
+            {"role": "user", "content": f"Based on this document, answer: {question}\n\nDocument:\n{pdf_context[:8000]}"}
+        ]
 
-        # Get the PDF context from the session
-        session_data = pdf_chats.get(session_id, {})
-        pdf_context = session_data.get("pdf_text", pdf_text_content)
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=messages,
+            max_tokens=300,
+            temperature=0.7
+        )
 
-        # Build conversation history for context
-        conversation_history = session_data.get("messages", [])
+        answer = response.choices[0].message.content
+        return jsonify({"answer": answer}), 200
 
-        # Build the prompt for OpenAI
-        if pdf_context:
-            # If PDF has been uploaded, use it as context
-            system_message = "You are a helpful assistant that answers questions based on the provided document context. Give clear, concise answers."
+    except Exception as e:
+        return jsonify({"error": f"Error: {str(e)}"}), 500
 
-            # Build messages array with conversation history
-            messages = [{"role": "system", "content": system_message}]
+# ============================================
+# WEBSOCKET EVENTS
+# ============================================
 
-            # Add previous conversation context (last 5 messages for efficiency)
-            for msg in conversation_history[-5:]:
-                messages.append({
-                    "role": msg["role"],
-                    "content": msg["content"]
-                })
+@socketio.on('connect')
+def handle_connect():
+    """Handle client connection"""
+    print(f'Client connected: {request.sid}')
+    emit('connected', {'data': 'Connected to WebSocket'})
 
-            # Add current question with document context
-            messages.append({
-                "role": "user",
-                "content": f"Based on the following document, answer this question: {question}\n\nDocument:\n{pdf_context[:8000]}"
-            })
-        else:
-            # No PDF uploaded, answer general questions
-            system_message = "You are a helpful assistant for a virtual office platform. Answer questions about workplace topics, onboarding, and general office-related queries."
-            messages = [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": question}
-            ]
+@socketio.on('disconnect')
+def handle_disconnect():
+    """Handle client disconnection"""
+    print(f'Client disconnected: {request.sid}')
 
-        try:
-            # Call OpenAI API
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=messages,
-                max_tokens=300,
-                temperature=0.7
-            )
+@socketio.on('join_conversation')
+def handle_join_conversation(data):
+    """Join a conversation room"""
+    conversation_id = data.get('conversation_id')
+    if conversation_id:
+        join_room(conversation_id)
+        print(f'Client {request.sid} joined conversation {conversation_id}')
+        emit('joined_conversation', {'conversation_id': conversation_id})
 
-            answer = response.choices[0].message.content
+@socketio.on('leave_conversation')
+def handle_leave_conversation(data):
+    """Leave a conversation room"""
+    conversation_id = data.get('conversation_id')
+    if conversation_id:
+        leave_room(conversation_id)
+        print(f'Client {request.sid} left conversation {conversation_id}')
 
-        except Exception as e:
-            return jsonify({"error": f"Error calling OpenAI API: {str(e)}"}), 500
+@socketio.on('typing')
+def handle_typing(data):
+    """Broadcast typing indicator"""
+    conversation_id = data.get('conversation_id')
+    user_id = data.get('user_id')
+    username = data.get('username')
 
-    # Store the question and answer in the session
-    from datetime import datetime
+    if conversation_id:
+        emit('user_typing', {
+            'conversation_id': conversation_id,
+            'user_id': user_id,
+            'username': username
+        }, room=conversation_id, include_self=False)
 
-    if session_id and os.path.exists(PDF_CHATS_FILE):
-        with open(PDF_CHATS_FILE, 'r') as f:
-            try:
-                pdf_chats = json.load(f)
-            except json.JSONDecodeError:
-                pdf_chats = {}
+# ============================================
+# HEALTH CHECK
+# ============================================
 
-        if session_id in pdf_chats:
-            pdf_chats[session_id]["messages"].extend([
-                {
-                    "role": "user",
-                    "content": question,
-                    "timestamp": datetime.now().isoformat()
-                },
-                {
-                    "role": "assistant",
-                    "content": answer,
-                    "timestamp": datetime.now().isoformat()
-                }
-            ])
-
-            with open(PDF_CHATS_FILE, 'w') as f:
-                json.dump(pdf_chats, f, indent=4)
-
-    return jsonify({"answer": answer}), 200
-
-# Endpoint to get chat history for a session
-@app.route("/get_chat_history/<session_id>", methods=["GET"])
-def get_chat_history(session_id):
-    if not os.path.exists(PDF_CHATS_FILE):
-        return jsonify({"messages": []}), 200
-
-    with open(PDF_CHATS_FILE, 'r') as f:
-        try:
-            pdf_chats = json.load(f)
-        except json.JSONDecodeError:
-            return jsonify({"messages": []}), 200
-
-    session_data = pdf_chats.get(session_id, {})
-    messages = session_data.get("messages", [])
-    pdf_name = session_data.get("pdf_name", "")
-
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
     return jsonify({
-        "messages": messages,
-        "pdf_name": pdf_name
+        "status": "healthy",
+        "supabase": "connected" if supabase else "not configured",
+        "openai": "connected" if openai_client else "not configured"
     }), 200
 
-def load_events():
-    """Load events from the JSON file."""
-    if os.path.exists(EVENTS_FILE):
-        with open(EVENTS_FILE, 'r') as file:
-            try:
-                return json.load(file)
-            except json.JSONDecodeError:
-                # Return an empty list if the file is empty or corrupted
-                return []
-    return []
+# ============================================
+# RUN SERVER
+# ============================================
 
-def save_events(events):
-    """Save events to the JSON file."""
-    with open(EVENTS_FILE, 'w') as file:
-        json.dump(events, file, indent=4)
-
-# Route to fetch all events
-@app.route('/events', methods=['GET'])
-def get_events():
-    events = load_events()
-    return jsonify(events)
-
-# Route to add a new event
-@app.route('/events', methods=['POST'])
-def add_event():
-    event_data = request.json  # Get event data from request
-
-    # Load existing events
-    events = load_events()
-
-    for event in events:
-        if (event["title"] == event_data.get("title") and
-                event["start"] == event_data.get("start") and
-                event["end"] == event_data.get("end")):
-            return jsonify({"error": "Event already exists"}), 400
-
-    # Add new event with a unique ID (based on existing number of events)
-    new_event = {
-        "id": len(events) + 1,
-        "title": event_data.get("title"),
-        "start": event_data.get("start"),
-        "end": event_data.get("end"),
-        "person": event_data.get("person"),
-        "description": event_data.get("description")
-    }
-    events.append(new_event)
-
-    # Save updated events to the file
-    save_events(events)
-
-    return jsonify(new_event), 201
-
-# Ensure necessary directories and files are set up
 if __name__ == "__main__":
-    os.makedirs('data', exist_ok=True)
-    for file_name in [CONVERSATIONS_FILE, MESSAGES_FILE, USER_FILE, PDF_CHATS_FILE]:
-        if not os.path.exists(file_name):
-            with open(file_name, 'w') as f:
-                json.dump({}, f)
-    app.run(debug=True, use_reloader=False)
+    print("\n" + "="*50)
+    print("🚀 Office.io Backend Server Starting...")
+    print("="*50)
+    print(f"✓ Flask app initialized")
+    print(f"✓ CORS enabled for all origins")
+    print(f"✓ WebSocket enabled")
+    print("="*50 + "\n")
+
+    # Run with SocketIO
+    socketio.run(app, debug=True, host='0.0.0.0', port=5000, allow_unsafe_werkzeug=True)

@@ -75,11 +75,11 @@ const AnnouncementPopup = () => {
   };
 
   return (
-    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-lg overflow-hidden w-80">
+    <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-surface rounded-2xl shadow-2xl overflow-hidden w-80 border border-border">
       {!isAnnouncementOpen && (
         <div
           onClick={toggleAnnouncementPopup}
-          className="cursor-pointer bg-white text-black text-center py-2 rounded-lg shadow-lg hover:bg-gray-300 hover:text-black transition duration-200"
+          className="cursor-pointer bg-green text-white text-center py-3 rounded-2xl shadow-lg hover:bg-primary transition duration-200 font-medium"
         >
           Announcements
         </div>
@@ -87,33 +87,33 @@ const AnnouncementPopup = () => {
 
       {isAnnouncementOpen && (
         <div className="relative p-3 space-y-3 overflow-y-auto h-72 w-full">
-          <div className="sticky top-0 bg-white z-10 p-2 border-b flex justify-between items-center">
-            <div className="font-bold text-gray-700">Announcements</div>
-            <button onClick={toggleAnnouncementPopup} className="text-gray-500 hover:text-gray-800">
+          <div className="sticky top-0 bg-surface z-10 p-2 border-b border-border flex justify-between items-center">
+            <div className="font-bold text-text-primary">Announcements</div>
+            <button onClick={toggleAnnouncementPopup} className="text-text-secondary hover:text-text-primary">
               ✕
             </button>
           </div>
           {defaultAnnouncements.map((announcement, index) => (
-            <div key={index} className="p-2 rounded-lg border-b border-gray-100">
-              <div className="font-medium text-gray-800">{announcement.title}</div>
-              <div className="text-xs text-gray-500">{announcement.date}</div>
-              <div className="text-sm text-gray-700 mt-1">{announcement.content}</div>
+            <div key={index} className="p-2 rounded-lg border-b border-border hover:bg-green-tint transition duration-200">
+              <div className="font-medium text-text-primary">{announcement.title}</div>
+              <div className="text-xs text-text-secondary">{announcement.date}</div>
+              <div className="text-sm text-text-primary mt-1">{announcement.content}</div>
             </div>
           ))}
 
           {/* Fixed message bar positioned at the bottom */}
-          <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 bg-white rounded-lg shadow-md p-2 w-72">
+          <div className="fixed bottom-2 left-1/2 transform -translate-x-1/2 bg-surface rounded-2xl shadow-xl p-2 w-72 border border-border">
             <div className="flex items-center">
               <input
                 type="text"
                 placeholder="Type a message..."
-                className="flex-1 border rounded-lg px-3 py-2 focus:outline-none focus:ring focus:border-gray-300"
+                className="flex-1 border border-border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-focus focus:border-transparent bg-surface"
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
               />
               <button
                 onClick={toggleUserSelectPopup}
-                className="ml-2 p-2 text-gray-500 rounded-full hover:bg-gray-200 hover:text-gray-700 transition duration-200"
+                className="ml-2 p-2 text-primary rounded-full hover:bg-primary-tint hover:text-primary-hover transition duration-200"
               >
                 <AiOutlinePlus size={20} />
               </button>

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import api from '../lib/api';
 
 const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
   const [conversations, setConversations] = useState([]);
@@ -7,17 +8,13 @@ const ConversationList = ({ onSelectConversation, selectedConversationId }) => {
   useEffect(() => {
     const fetchConversations = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:5000/conversations');
-        if (!response.ok) {
-          throw new Error('Failed to fetch conversations');
-        }
-        const data = await response.json();
+        const data = await api.getConversations();
         setConversations(data);
       } catch (error) {
         console.error('Error fetching conversations:', error);
       }
     };
-    
+
     fetchConversations();
   }, []);
 

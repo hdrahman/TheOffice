@@ -3,8 +3,8 @@
 @tailwind utilities;
 
 body {
-    background-color: #614879;
-    background: linear-gradient(to top right, #614879, rgb(55, 19, 80));
+    background-color: #F7F5F1;
+    background: linear-gradient(135deg, #F7F5F1 0%, #FFFFFF 100%);
     height: calc(100vh - 27px);
 }
 
@@ -13,4 +13,4 @@ body {
     src: url('./assets/MagnumSans.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
-  }
+}

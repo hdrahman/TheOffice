@@ -38,37 +38,37 @@ const SchedulePopup = () => {
   };
 
   return (
-    <div className="fixed bottom-4 left-4 bg-white rounded-lg shadow-lg overflow-hidden">
+    <div className="fixed bottom-4 left-4 bg-surface rounded-2xl shadow-2xl overflow-hidden border border-border">
       {!isScheduleOpen && (
         <div
           onClick={toggleSchedulePopup}
-          className="cursor-pointer w-72 bg-white text-black text-center py-2 rounded-lg shadow-lg hover:bg-blue-300 hover:text-black"
+          className="cursor-pointer w-72 bg-brown text-white text-center py-3 rounded-2xl shadow-lg hover:bg-primary-hover transition duration-200 font-medium"
         >
-          Today's Schedule
+          Today&apos;s Schedule
         </div>
       )}
 
       {isScheduleOpen && (
         <div className="p-3 space-y-3 overflow-y-auto h-72 w-72">
-          <div className="sticky top-0 bg-white z-10 p-2 border-b flex justify-between items-center">
-            <div className="font-bold text-gray-700">Today's Schedule</div>
-            <button onClick={toggleSchedulePopup} className="text-gray-500 hover:text-gray-800">
+          <div className="sticky top-0 bg-surface z-10 p-2 border-b border-border flex justify-between items-center">
+            <div className="font-bold text-text-primary">Today&apos;s Schedule</div>
+            <button onClick={toggleSchedulePopup} className="text-text-secondary hover:text-text-primary">
               ✕
             </button>
           </div>
           {todayEvents.length > 0 ? (
             todayEvents.map(event => (
-              <div key={event.id} className="p-2 rounded-lg border-b border-gray-100">
-                <div className="font-medium text-gray-800">{event.title}</div>
-                <div className="text-xs text-gray-500">
+              <div key={event.id} className="p-2 rounded-lg border-b border-border hover:bg-primary-tint transition duration-200">
+                <div className="font-medium text-text-primary">{event.title}</div>
+                <div className="text-xs text-text-secondary">
                   {moment(event.start).format('h:mm A')} - {moment(event.end).format('h:mm A')}
                 </div>
-                <div className="text-xs text-gray-500">{event.person}</div>
-                <div className="text-xs text-gray-500">{event.description}</div>
+                <div className="text-xs text-text-secondary">{event.person}</div>
+                <div className="text-xs text-text-secondary">{event.description}</div>
               </div>
             ))
           ) : (
-            <p className="text-gray-500 text-sm">No events scheduled for today!</p>
+            <p className="text-text-secondary text-sm">No events scheduled for today!</p>
           )}
         </div>
       )}

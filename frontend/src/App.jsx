@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import Home from './pages/Home.jsx';
 import Schedule from './pages/Schedule.jsx';
 import Messages from './pages/Messages.jsx';
@@ -8,8 +8,8 @@ import Chatbot from './pages/Chatbot.jsx';
 
 function App() {
   return (
-    <>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
           <Route path='/' element={<Home />}></Route>
           <Route path='/schedule' element={<Schedule />}></Route>
@@ -17,8 +17,8 @@ function App() {
           <Route path='/chatbot' element={<Chatbot />}></Route>
           <Route path='/login' element={<LogIn />}></Route>
         </Routes>
-      </BrowserRouter>
-    </>
+      </AuthProvider>
+    </BrowserRouter>
   )
 }
 

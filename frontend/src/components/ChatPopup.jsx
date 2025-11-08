@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { useAuth } from '../context/AuthContext';
+import api from '../lib/api';
 
 const ChatPopup = () => {
   const [isContactListOpen, setIsContactListOpen] = useState(false);
@@ -6,40 +8,23 @@ const ChatPopup = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [user, setUser] = useState(null); // New state for user data
+  const { user } = useAuth();
 
-  // Fetch user information (updated to match MainChatPanel)
+  // Fetch conversations
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await fetch('http://127.0.0.1:5000/user'); // Match the URL used in MainChatPanel
-        if (!response.ok) throw new Error(`User fetch failed with status ${response.status}`);
-
-        const contentType = response.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-          const data = await response.json();
-          setUser(data);
-        } else {
-          throw new Error("Expected JSON response but received a different format");
-        }
-      } catch (error) {
-        console.error('Error fetching user:', error);
-      }
-    };
-
     const fetchConversations = async () => {
       try {
-        const response = await fetch('http://127.0.0.1:5000/conversations');
-        const data = await response.json();
+        const data = await api.getConversations();
         setConversations(data);
       } catch (error) {
         console.error('Error fetching conversations:', error);
       }
     };
 
-    fetchUser();
-    fetchConversations();
-  }, []);
+    if (user) {
+      fetchConversations();
+    }
+  }, [user]);
 
   // Fetch messages for the selected conversation
   const handleConversationSelect = async (conversation) => {
@@ -47,8 +32,7 @@ const ChatPopup = () => {
     setIsContactListOpen(false);
 
     try {
-      const response = await fetch(`http://127.0.0.1:5000/conversations/${conversation.id}/messages`);
-      const data = await response.json();
+      const data = await api.getMessages(conversation.id);
       setMessages(data);
     } catch (error) {
       console.error('Error fetching messages:', error);
@@ -59,29 +43,11 @@ const ChatPopup = () => {
   const sendMessage = async () => {
     if (!newMessage.trim() || !user || !selectedConversation) return;
 
-    const newMessageData = {
-      text: newMessage,
-      senderId: user.userId, // Use userId from fetched user data
-      timestamp: new Date().toISOString(),
-    };
-
     try {
-      const response = await fetch(
-        `http://127.0.0.1:5000/conversations/${selectedConversation.id}/messages`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newMessageData),
-        }
-      );
-
-      if (response.ok) {
-        // Update messages locally to reflect the new message immediately
-        setMessages((prevMessages) => [...prevMessages, { ...newMessageData, isCurrentUser: true }]);
-        setNewMessage('');
-      } else {
-        console.error('Failed to send message:', response.statusText);
-      }
+      const msgData = await api.sendMessage(selectedConversation.id, newMessage);
+      // Update messages locally to reflect the new message immediately
+      setMessages((prevMessages) => [...prevMessages, { ...msgData, isCurrentUser: true }]);
+      setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
     }
@@ -148,15 +114,15 @@ const ChatPopup = () => {
             {messages.map((msg, index) => (
               <div
                 key={index}
-                className={`p-2 ${msg.senderId === user?.userId ? 'text-right' : 'text-left'}`}
+                className={`p-2 ${msg.sender_id === user?.id ? 'text-right' : 'text-left'}`}
               >
                 <div
-                  className={`inline-block p-2 rounded-lg ${msg.senderId === user?.userId
+                  className={`inline-block p-2 rounded-lg ${msg.sender_id === user?.id
                     ? 'bg-primary text-white ml-auto' // Right-aligned styling for current user
                     : 'bg-green-tint text-text-primary mr-auto' // Left-aligned styling for others
                     }`}
                 >
-                  {msg.text}
+                  {msg.content || msg.text}
                 </div>
               </div>
             ))}

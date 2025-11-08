@@ -92,8 +92,8 @@ const Scheduler = () => {
     return events;
   };
 
-  // Initialize events with the generated monthly schedule
-  const [events, setEvents] = useState(generateMonthlySchedule);
+  // Initialize events as empty - only show DB events
+  const [events, setEvents] = useState([]);
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -106,7 +106,7 @@ const Scheduler = () => {
           title: event.title,
           description: event.description || '',
         }));
-        setEvents(prevEvents => [...prevEvents, ...parsedBackendEvents]);
+        setEvents(parsedBackendEvents);
       } catch (error) {
         console.error("Error fetching events:", error);
       }

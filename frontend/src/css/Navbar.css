@@ -12,17 +12,24 @@ nav {
     height: 50px;
     background-color: #FFFFFF;
     border-radius: 12px;
-    font-size: 0;
     z-index: 999;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
     border: 1px solid #E8E2D9;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: nowrap;
+    /* prevent items from wrapping to next line */
 }
 
 nav .navbar-item {
     line-height: 50px;
     height: 100%;
     font-size: 15px;
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     position: relative;
     z-index: 1;
     text-decoration: none;
@@ -94,7 +101,7 @@ nav .navbar-item:nth-child(4):hover~.animation {
 nav .navbar-item:nth-child(5):hover~.animation {
     width: 120px;
     left: 480px;
-    background-color: #F59E0B;
+    background-color: #8B5E3C;
 }
 
 span {
@@ -115,8 +122,8 @@ span {
     background-color: #8B5E3C;
 }
 
-.navbar-item:nth-child(3).active {
-    background-color: #2457B2;
+.navbar-item:nth-child(5).active {
+    background-color: #8B5E3C;
 }
 
 .navbar-item:nth-child(4).active {
@@ -124,5 +131,5 @@ span {
 }
 
 .navbar-item:nth-child(5).active {
-    background-color: #F59E0B;
+    background-color: #2457B2;
 }

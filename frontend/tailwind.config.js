@@ -17,28 +17,28 @@ export default {
         background: '#F7F5F1',
         surface: '#FFFFFF',
         border: '#E8E2D9',
-        
+
         primary: {
           DEFAULT: '#2457B2',
           hover: '#2F6BD9',
           focus: '#BFD3FF',
           tint: '#EDF3FF',
         },
-        
+
         brown: {
           DEFAULT: '#8B5E3C',
           tint: '#EAD9CA',
         },
-        
+
         green: {
           DEFAULT: '#3C8C6E',
           tint: '#E7F3EE',
         },
-        
+
         danger: '#C0392B',
         warning: '#F59E0B',
         info: '#2563EB',
-        
+
         text: {
           primary: '#1F2937',
           secondary: '#6B7280',

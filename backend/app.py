@@ -51,17 +51,25 @@ def require_auth(f):
         auth_header = request.headers.get('Authorization')
 
         if not auth_header or not auth_header.startswith('Bearer '):
+            print("❌ Auth failed: Missing or invalid authorization header")
             return jsonify({"error": "Missing or invalid authorization header"}), 401
 
         token = auth_header.split('Bearer ')[1]
 
         try:
-            # Verify JWT token with Supabase
-            user = supabase.auth.get_user(token)
-            request.user_id = user.user.id
-            request.user = user.user
+            # Verify JWT token with Supabase by making authenticated request
+            response = supabase.auth.get_user(token)
+
+            # Set user info on request object
+            request.user_id = response.user.id
+            request.user_email = response.user.email
+
+            print(f"✓ Auth success for user: {response.user.email} (ID: {response.user.id})")
             return f(*args, **kwargs)
         except Exception as e:
+            print(f"❌ Auth failed: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return jsonify({"error": "Invalid or expired token", "details": str(e)}), 401
 
     return decorated_function
@@ -187,15 +195,23 @@ def get_current_user():
 def get_conversations():
     """Get all conversations for the current user"""
     try:
+        print(f"📨 Fetching conversations for user: {request.user_id}")
+
         # Get conversations where user is a participant
         result = supabase.table('conversation_participants').select(
             'conversation_id, conversations(*)'
         ).eq('user_id', request.user_id).execute()
 
+        print(f"✓ Found {len(result.data)} participant records")
+
         conversations = [item['conversations'] for item in result.data if item.get('conversations')]
 
+        print(f"✓ Returning {len(conversations)} conversations")
         return jsonify(conversations), 200
     except Exception as e:
+        print(f"❌ Error in get_conversations: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/conversations/<conversation_id>', methods=['GET'])
@@ -333,13 +349,17 @@ def send_message(conversation_id):
 def get_events():
     """Get all events for the current user"""
     try:
+        print(f"📅 Fetching events for user: {request.user_id}")
+
         # Get events created by user or where user is attendee
         events = supabase.table('events').select('*').eq('created_by', request.user_id).execute()
+        print(f"✓ Found {len(events.data)} events created by user")
 
         # Also get events where user is an attendee
         attendee_events = supabase.table('event_attendees').select(
             'events(*)'
         ).eq('user_id', request.user_id).execute()
+        print(f"✓ Found {len(attendee_events.data)} events as attendee")
 
         all_events = events.data + [item['events'] for item in attendee_events.data if item.get('events')]
 
@@ -347,12 +367,16 @@ def get_events():
         seen = set()
         unique_events = []
         for event in all_events:
-            if event['id'] not in seen:
+            if event and event['id'] not in seen:
                 seen.add(event['id'])
                 unique_events.append(event)
 
+        print(f"✓ Returning {len(unique_events)} unique events")
         return jsonify(unique_events), 200
     except Exception as e:
+        print(f"❌ Error in get_events: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
 @app.route('/events', methods=['POST'])

@@ -28,6 +28,7 @@ CONVERSATIONS_FILE = 'data/conversations.json'
 MESSAGES_FILE = 'data/messages.json'
 USER_FILE = 'data/user.json'
 EVENTS_FILE = 'data/events.json'
+PDF_CHATS_FILE = 'data/pdf_chats.json'
 
 # Initialize OpenAI client
 api_key = os.getenv('OPENAI_API_KEY')
@@ -38,8 +39,9 @@ if not api_key:
 else:
     client = OpenAI(api_key=api_key)
 
-# Global variable to store uploaded PDF text
+# Global variable to store uploaded PDF text (for backward compatibility)
 pdf_text_content = None
+current_pdf_session = None
 
 def load_data(file_path):
     if os.path.exists(file_path):
@@ -128,7 +130,10 @@ def add_cors_headers(response):
 @app.route("/upload_pdf", methods=["POST"])
 @cross_origin(origin="http://localhost:5173")
 def upload_pdf():
-    global pdf_text_content
+    global pdf_text_content, current_pdf_session
+
+    if not client:
+        return jsonify({"error": "OpenAI API key not configured"}), 500
 
     pdf_file = request.files.get("file")
     if not pdf_file:
@@ -140,52 +145,187 @@ def upload_pdf():
     if not pdf_text_content or len(pdf_text_content.strip()) == 0:
         return jsonify({"error": "Could not extract text from PDF"}), 400
 
-    return jsonify({"message": "PDF uploaded and processed successfully"}), 200
+    # Generate a summary of the PDF using OpenAI
+    try:
+        summary_response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant that summarizes documents. Provide a concise summary highlighting the key points."},
+                {"role": "user", "content": f"Please provide a brief summary of this document:\n\n{pdf_text_content[:8000]}"}
+            ],
+            max_tokens=200,
+            temperature=0.5
+        )
+        summary = summary_response.choices[0].message.content
+    except Exception as e:
+        return jsonify({"error": f"Error generating summary: {str(e)}"}), 500
+
+    # Create a new PDF chat session
+    import uuid
+    from datetime import datetime
+
+    session_id = str(uuid.uuid4())
+    current_pdf_session = session_id
+
+    # Load existing PDF chats
+    pdf_chats = {}
+    if os.path.exists(PDF_CHATS_FILE):
+        with open(PDF_CHATS_FILE, 'r') as f:
+            try:
+                pdf_chats = json.load(f)
+            except json.JSONDecodeError:
+                pdf_chats = {}
+
+    # Store the new session
+    pdf_chats[session_id] = {
+        "pdf_name": pdf_file.filename,
+        "pdf_text": pdf_text_content,
+        "created_at": datetime.now().isoformat(),
+        "messages": [
+            {
+                "role": "assistant",
+                "content": summary,
+                "timestamp": datetime.now().isoformat()
+            }
+        ]
+    }
+
+    # Save to file
+    with open(PDF_CHATS_FILE, 'w') as f:
+        json.dump(pdf_chats, f, indent=4)
+
+    return jsonify({
+        "message": "PDF uploaded and processed successfully",
+        "session_id": session_id,
+        "summary": summary,
+        "pdf_name": pdf_file.filename
+    }), 200
 
 @app.route("/ask_question", methods=["POST"])
 def ask_question():
-    global pdf_text_content
+    global pdf_text_content, current_pdf_session
 
     if not client:
         return jsonify({"error": "OpenAI API key not configured. Please set OPENAI_API_KEY in .env file"}), 500
 
     data = request.json
     question = data.get("question")
+    session_id = data.get("session_id", current_pdf_session)
 
     if not question:
         return jsonify({"error": "No question provided"}), 400
 
     # Check if the question has a hardcoded answer
     if question in hardcoded_answers:
-        return jsonify({"answer": hardcoded_answers[question]}), 200
-
-    # Build the prompt for OpenAI
-    if pdf_text_content:
-        # If PDF has been uploaded, use it as context
-        system_message = "You are a helpful assistant that answers questions based on the provided document context. Give clear, concise answers."
-        user_message = f"Based on the following document, answer this question: {question}\n\nDocument:\n{pdf_text_content[:8000]}"  # Limit context to avoid token limits
+        answer = hardcoded_answers[question]
     else:
-        # No PDF uploaded, answer general questions
-        system_message = "You are a helpful assistant for a virtual office platform. Answer questions about workplace topics, onboarding, and general office-related queries."
-        user_message = question
+        # Load the PDF chat session
+        pdf_chats = {}
+        if os.path.exists(PDF_CHATS_FILE) and session_id:
+            with open(PDF_CHATS_FILE, 'r') as f:
+                try:
+                    pdf_chats = json.load(f)
+                except json.JSONDecodeError:
+                    pdf_chats = {}
 
-    try:
-        # Call OpenAI API
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[
+        # Get the PDF context from the session
+        session_data = pdf_chats.get(session_id, {})
+        pdf_context = session_data.get("pdf_text", pdf_text_content)
+
+        # Build conversation history for context
+        conversation_history = session_data.get("messages", [])
+
+        # Build the prompt for OpenAI
+        if pdf_context:
+            # If PDF has been uploaded, use it as context
+            system_message = "You are a helpful assistant that answers questions based on the provided document context. Give clear, concise answers."
+
+            # Build messages array with conversation history
+            messages = [{"role": "system", "content": system_message}]
+
+            # Add previous conversation context (last 5 messages for efficiency)
+            for msg in conversation_history[-5:]:
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"]
+                })
+
+            # Add current question with document context
+            messages.append({
+                "role": "user",
+                "content": f"Based on the following document, answer this question: {question}\n\nDocument:\n{pdf_context[:8000]}"
+            })
+        else:
+            # No PDF uploaded, answer general questions
+            system_message = "You are a helpful assistant for a virtual office platform. Answer questions about workplace topics, onboarding, and general office-related queries."
+            messages = [
                 {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message}
-            ],
-            max_tokens=300,
-            temperature=0.7
-        )
+                {"role": "user", "content": question}
+            ]
 
-        answer = response.choices[0].message.content
-        return jsonify({"answer": answer}), 200
+        try:
+            # Call OpenAI API
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                max_tokens=300,
+                temperature=0.7
+            )
 
-    except Exception as e:
-        return jsonify({"error": f"Error calling OpenAI API: {str(e)}"}), 500
+            answer = response.choices[0].message.content
+
+        except Exception as e:
+            return jsonify({"error": f"Error calling OpenAI API: {str(e)}"}), 500
+
+    # Store the question and answer in the session
+    from datetime import datetime
+
+    if session_id and os.path.exists(PDF_CHATS_FILE):
+        with open(PDF_CHATS_FILE, 'r') as f:
+            try:
+                pdf_chats = json.load(f)
+            except json.JSONDecodeError:
+                pdf_chats = {}
+
+        if session_id in pdf_chats:
+            pdf_chats[session_id]["messages"].extend([
+                {
+                    "role": "user",
+                    "content": question,
+                    "timestamp": datetime.now().isoformat()
+                },
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "timestamp": datetime.now().isoformat()
+                }
+            ])
+
+            with open(PDF_CHATS_FILE, 'w') as f:
+                json.dump(pdf_chats, f, indent=4)
+
+    return jsonify({"answer": answer}), 200
+
+# Endpoint to get chat history for a session
+@app.route("/get_chat_history/<session_id>", methods=["GET"])
+def get_chat_history(session_id):
+    if not os.path.exists(PDF_CHATS_FILE):
+        return jsonify({"messages": []}), 200
+
+    with open(PDF_CHATS_FILE, 'r') as f:
+        try:
+            pdf_chats = json.load(f)
+        except json.JSONDecodeError:
+            return jsonify({"messages": []}), 200
+
+    session_data = pdf_chats.get(session_id, {})
+    messages = session_data.get("messages", [])
+    pdf_name = session_data.get("pdf_name", "")
+
+    return jsonify({
+        "messages": messages,
+        "pdf_name": pdf_name
+    }), 200
 
 def load_events():
     """Load events from the JSON file."""
@@ -242,7 +382,7 @@ def add_event():
 # Ensure necessary directories and files are set up
 if __name__ == "__main__":
     os.makedirs('data', exist_ok=True)
-    for file_name in [CONVERSATIONS_FILE, MESSAGES_FILE, USER_FILE]:
+    for file_name in [CONVERSATIONS_FILE, MESSAGES_FILE, USER_FILE, PDF_CHATS_FILE]:
         if not os.path.exists(file_name):
             with open(file_name, 'w') as f:
                 json.dump({}, f)

@@ -1,27 +1,166 @@
-// src/components/3d/Scene.js
-import React, { useRef, Suspense, useEffect } from 'react';
+// src/components/3d/Scene.jsx
+import React, { useRef, Suspense, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls } from '@react-three/drei';
 import { SmallWall, Wall, Desk, Chair, Floor, Floor2, OfficePlant, TallOfficePlant, OfficeDisplay, AdjustableWall, DoubleGlassDoors, BoardroomTable } from './OfficeComponents';
 import Avatar from './Avatar';
 import { ConferenceSeating } from './ConferenceSeating';
 import { OfficeDivider } from './OfficeDivider';
-import { GridHelper, AxesHelper } from 'three';
 import { Sofa } from './Sofa';
 import { LoungeArea } from './LoungeArea';
 import { PoolTable } from './PoolTable';
 import Avatar2 from './Avatar2';
 import OfficeLighting from './OfficeLighting';
 import Cat from './Cat';
+import socketManager from '../../lib/socket';
+import { useAuth } from '../../context/AuthContext';
+
+// Throttle function to limit how often we send position updates
+function throttle(func, limit) {
+  let inThrottle;
+  return function (...args) {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => (inThrottle = false), limit);
+    }
+  };
+}
+
+// Component to render other players
+function RemotePlayer({ player }) {
+  const meshRef = useRef();
+
+  useEffect(() => {
+    if (meshRef.current && player.position) {
+      meshRef.current.position.set(
+        player.position.x || 0,
+        player.position.y || 1,
+        player.position.z || 0
+      );
+      meshRef.current.rotation.y = player.rotation || 0;
+    }
+  }, [player.position, player.rotation]);
+
+  return (
+    <group ref={meshRef}>
+      {/* Head */}
+      <mesh position={[0, 1.6, 0]}>
+        <sphereGeometry args={[0.3, 16, 16]} />
+        <meshStandardMaterial color="lightgreen" />
+      </mesh>
+      {/* Torso */}
+      <mesh position={[0, 0.7, 0]}>
+        <boxGeometry args={[0.6, 1, 0.4]} />
+        <meshStandardMaterial color="green" />
+      </mesh>
+      {/* Arms */}
+      <mesh position={[-0.5, 0.7, 0]}>
+        <boxGeometry args={[0.2, 0.8, 0.2]} />
+        <meshStandardMaterial color="green" />
+      </mesh>
+      <mesh position={[0.5, 0.7, 0]}>
+        <boxGeometry args={[0.2, 0.8, 0.2]} />
+        <meshStandardMaterial color="green" />
+      </mesh>
+      {/* Legs */}
+      <mesh position={[-0.2, -0.3, 0]}>
+        <boxGeometry args={[0.2, 0.8, 0.2]} />
+        <meshStandardMaterial color="darkgreen" />
+      </mesh>
+      <mesh position={[0.2, -0.3, 0]}>
+        <boxGeometry args={[0.2, 0.8, 0.2]} />
+        <meshStandardMaterial color="darkgreen" />
+      </mesh>
+      {/* Username label above head */}
+      <mesh position={[0, 2.2, 0]}>
+        <boxGeometry args={[1, 0.3, 0.01]} />
+        <meshBasicMaterial color="white" opacity={0.8} transparent />
+      </mesh>
+    </group>
+  );
+}
 
 function Scene({ isFirstPerson, onAvatarClick }) {
   const avatarRef = useRef();
   const controlsRef = useRef();
+  const { camera } = useThree();
+  const { user } = useAuth();
+
+  // State for connected players
+  const [otherPlayers, setOtherPlayers] = useState({});
 
   const speed = 0.1;
-  const { camera } = useThree();
-
   const keysPressed = useRef({ ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false });
+
+  // Connect to Socket.IO and set up multiplayer
+  useEffect(() => {
+    if (!user) return;
+
+    console.log('🔌 Connecting to multiplayer...');
+    
+    // Connect socket
+    socketManager.connect(user.id, user.username || user.email);
+
+    // Listen for current players when joining
+    socketManager.onCurrentPlayers((players) => {
+      console.log('👥 Current players:', players);
+      const playersMap = {};
+      players.forEach(p => {
+        if (p.sid !== socketManager.socket.id) {
+          playersMap[p.sid] = p;
+        }
+      });
+      setOtherPlayers(playersMap);
+    });
+
+    // Listen for new players joining
+    socketManager.onPlayerJoined((player) => {
+      console.log('👤 Player joined:', player.username);
+      setOtherPlayers(prev => ({ ...prev, [player.sid]: player }));
+    });
+
+    // Listen for player movement
+    socketManager.onPlayerMoved((data) => {
+      setOtherPlayers(prev => {
+        if (!prev[data.sid]) return prev;
+        return {
+          ...prev,
+          [data.sid]: {
+            ...prev[data.sid],
+            position: data.position,
+            rotation: data.rotation
+          }
+        };
+      });
+    });
+
+    // Listen for players leaving
+    socketManager.onPlayerLeft((data) => {
+      console.log('👋 Player left:', data.sid);
+      setOtherPlayers(prev => {
+        const newPlayers = { ...prev };
+        delete newPlayers[data.sid];
+        return newPlayers;
+      });
+    });
+
+    // Cleanup on unmount
+    return () => {
+      console.log('🔌 Disconnecting from multiplayer...');
+      socketManager.disconnect();
+    };
+  }, [user]);
+
+  // Throttled function to broadcast position
+  const broadcastPosition = useRef(
+    throttle((position, rotation) => {
+      socketManager.emitPlayerMove(
+        { x: position.x, y: position.y, z: position.z },
+        rotation
+      );
+    }, 100) // Send updates every 100ms (10 times per second)
+  ).current;
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -42,12 +181,20 @@ function Scene({ isFirstPerson, onAvatarClick }) {
   }, []);
 
   useFrame(() => {
+    // Camera movement with arrow keys
     if (keysPressed.current.ArrowUp) camera.position.z -= speed;
     if (keysPressed.current.ArrowDown) camera.position.z += speed;
     if (keysPressed.current.ArrowLeft) camera.position.x -= speed;
     if (keysPressed.current.ArrowRight) camera.position.x += speed;
 
     if (controlsRef.current) controlsRef.current.update();
+
+    // Broadcast avatar position if it exists
+    if (avatarRef.current) {
+      const position = avatarRef.current.position;
+      const rotation = avatarRef.current.rotation;
+      broadcastPosition(position, rotation.y);
+    }
   });
 
   useEffect(() => {
@@ -139,16 +286,22 @@ function Scene({ isFirstPerson, onAvatarClick }) {
         <Sofa position={[5.5, 0.5, -4]} scale={1.5} />
       </group>
 
-      {/* Avatars */}
+      {/* Your Avatar */}
       <Suspense fallback={null}>
         <Avatar ref={avatarRef} isFirstPerson={isFirstPerson} />
       </Suspense>
-      <OrbitControls ref={controlsRef} />
 
+      {/* Render Other Players */}
+      {Object.values(otherPlayers).map((player) => (
+        <Suspense key={player.sid} fallback={null}>
+          <RemotePlayer player={player} />
+        </Suspense>
+      ))}
+
+      <OrbitControls ref={controlsRef} />
 
       <SmallWall position={[-10, 2.5, 6]} args={[0.2, 5, 8]} />
       <SmallWall position={[-6, 2.5, 10]} args={[8, 5, 0.2]} />
-
 
       <SmallWall position={[10, 2.5, 6]} args={[0.2, 5, 8]} />
       <SmallWall position={[6, 2.5, 10]} args={[8, 5, 0.2]} />
@@ -159,16 +312,20 @@ function Scene({ isFirstPerson, onAvatarClick }) {
       <SmallWall position={[-10, 2.5, -2]} args={[0.2, 5, 8]} />
       <SmallWall position={[-4, 2.5, -10]} args={[8, 5, 0.2]} />
 
-      <OfficeLighting/>
+      <OfficeLighting />
 
       <OfficeDisplay receiveShadow castShadow position={[-12.5, 3, -30]} scale={4} />
       <OfficeDisplay receiveShadow castShadow position={[12.5, 3, -30]} scale={4} />
 
       <Cat position={[10, 0, 10]} />
 
-      {/* Avatar2 with click handler passed as prop */}
-      <Avatar2 position={[-20, 2.5, 20]} name="Sophia Harper" summary="Working on integrating a machine learning model into a customer support platform to automatically classify and prioritize support tickets based on urgency and topic" 
-      onAvatarClick={onAvatarClick} />
+      {/* Static NPC Avatar */}
+      <Avatar2 
+        position={[-20, 2.5, 20]} 
+        name="Sophia Harper" 
+        summary="Working on integrating a machine learning model into a customer support platform to automatically classify and prioritize support tickets based on urgency and topic" 
+        onAvatarClick={onAvatarClick} 
+      />
     </>
   );
 }

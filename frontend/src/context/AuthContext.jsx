@@ -76,23 +76,12 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const updateProfile = async (profileData) => {
-    try {
-      const updatedUser = await api.updateCurrentUser(profileData);
-      setUser(updatedUser);
-      return updatedUser;
-    } catch (error) {
-      throw error;
-    }
-  };
-
   const value = {
     user,
     loading,
     login,
     signup,
     logout,
-    updateProfile,
     isAuthenticated: !!user,
   };
 

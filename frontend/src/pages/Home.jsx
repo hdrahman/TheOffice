@@ -19,11 +19,11 @@ const Home = () => {
 
   // Popup state
   const [showPopup, setShowPopup] = useState(false);
-  const [popupData, setPopupData] = useState({ name: '', summary: '', userId: null });
+  const [popupData, setPopupData] = useState({ name: '', summary: '' });
 
   // Function to handle Avatar2 clicks from Scene
-  const handleAvatarClick = (name, summary, userId = null) => {
-    setPopupData({ name, summary, userId });
+  const handleAvatarClick = (name, summary) => {
+    setPopupData({ name, summary });
     setShowPopup(true);
   };
 
@@ -44,7 +44,6 @@ const Home = () => {
         <UserPopup
           name={popupData.name}
           summary={popupData.summary}
-          userId={popupData.userId}
           onClose={handleClosePopup}
         />
       )}

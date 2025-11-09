@@ -4,10 +4,10 @@ import UserPopup from '../components/UserPopup';
 
 function App() {
   const [showPopup, setShowPopup] = useState(false);
-  const [popupData, setPopupData] = useState({ name: '', summary: '' });
+  const [popupData, setPopupData] = useState({ name: '', summary: '', userId: null });
 
-  const handleClick = (name, summary) => {
-    setPopupData({ name, summary });
+  const handleClick = (name, summary, userId = null) => {
+    setPopupData({ name, summary, userId });
     setShowPopup(true);
   };
 
@@ -28,6 +28,7 @@ function App() {
         <UserPopup
           name={popupData.name}
           summary={popupData.summary}
+          userId={popupData.userId}
           onClose={handleClose}
         />
       )}

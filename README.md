@@ -1,6 +1,6 @@
-# Virtual Office Platform for Hybrid Work Engagement
+# Virtual Office Platform for Remote Work Engagement
 
-Welcome to the **Virtual Office Platform**! 🏆 This application, developed for the Zentra AI hackathon, won Dundermifflin's challenge for "Innovative Use of Media/Tech to Engage Colleagues in a Hybrid Working World." Our platform used  web technologies to allow seamless interaction and collaboration in a hybrid work environment.
+Welcome to the **Virtual Office Platform**! This application was developed for the HackUMass hackathon. Our platform uses web technologies to allow seamless interaction and collaboration in a remote or hybrid work environment - creating a virtual co-working space!
 
 ## Table of Contents
 

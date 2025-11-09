@@ -35,9 +35,11 @@ const ResponsiveAppBar = () => {
         <div className="animation"></div>
       </nav>
       {/* floating profile picture — separate from the nav bar */}
-      <div className="pfp-floating" onClick={() => navigate('/account')} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') navigate('/account'); }}>
-        <img src={DefaultPfp} alt="profile" />
-      </div>
+      {user && (
+        <div className="pfp-floating" onClick={() => navigate('/account')} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === 'Enter') navigate('/account'); }}>
+          <img src={user.profile_picture_url || DefaultPfp} alt="profile" />
+        </div>
+      )}
     </>
   );
 }

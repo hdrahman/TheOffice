@@ -11,12 +11,6 @@ export function LoungeArea({ position = [0, 0, 0], scale = 1 }) {
       <Sofa position={[2, 0, 2]} rotation={[0, -Math.PI / 4, 0]} scale={1.2} />        {/* Right Sofa */}
       <Sofa position={[0, 0, 5]} rotation={[0, Math.PI, 0]} scale={1.2} />            {/* Center Back Sofa */}
 
-      {/* Central Table */}
-      <mesh position={[0, 0.3, 0]}>
-        <cylinderGeometry args={[0.8, 0.8, 0.1, 32]} /> {/* Round table */}
-        <meshStandardMaterial color="#8B4513" />       {/* Brown table color */}
-      </mesh>
-
       {/* Plants */}
       <TallOfficePlant position={[2, 0, 7]} scale={1.5} />    {/* Left Plant */}
       <TallOfficePlant position={[0, 0, 0]} scale={1.5} />   {/* Right Plant */}

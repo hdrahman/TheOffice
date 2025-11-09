@@ -5,9 +5,9 @@ export function ConferenceSeating({ position = [0, 0, 0], scale = 1 }) {
   return (
     <group position={position} scale={scale}>
       {/* Conference Table */}
-      <mesh position={[0, 0.25, 0]}>
+      <mesh position={[0, 0.7, 0]}>
         <cylinderGeometry args={[1.5, 1.5, 0.1, 32]} />
-        <meshStandardMaterial color="#8B4513" /> {/* Brown table top */}
+        <meshStandardMaterial color="#849196ff" /> {/* Brown table top */}
       </mesh>
 
       {/* Table Stand */}

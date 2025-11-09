@@ -1,283 +1,243 @@
 // src/components/3d/Avatar.jsx
-import React, {
-  useRef,
-  useEffect,
-  forwardRef,
-  useImperativeHandle,
-} from "react";
-import { useFrame, useThree } from "@react-three/fiber";
-import * as THREE from "three";
-import { wallBoundingBox } from "./OfficeComponents";
+import React, { useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { useFrame, useThree } from '@react-three/fiber';
+import * as THREE from 'three';
 
-function throttle(func, limit) {
-  let inThrottle;
-  return function (...args) {
-    if (!inThrottle) {
-      func(...args);
-      inThrottle = true;
-      setTimeout(() => (inThrottle = false), limit);
-    }
-  };
-}
+const Avatar = forwardRef(
+  (
+    {
+      isFirstPerson = false,
+      startPosition = [0, 1, 0],
+      cameraStartPosition = [0, 2, 5], // third-person camera spawn
+      cameraStartLookAt = [0, 1.5, 0], // where camera should look initially
+    },
+    ref
+  ) => {
+    const groupRef = useRef();
+    const { camera, scene } = useThree();
 
-const Avatar = forwardRef(({ isFirstPerson, debugCamera = false }, ref) => {
-  const groupRef = useRef();
-  const { camera, scene } = useThree();
+    // movement params
+    const speed = 0.075;
+    const rotationSpeed = 0.05;
+    const jumpStrength = 0.15;
+    const gravity = 0.01;
 
-  // movement / physics constants (units per second where appropriate)
-  const speed = 3.0; // units / second
-  const rotationSpeed = THREE.MathUtils.degToRad(120); // rad / second
-  const jumpStrength = 4.5; // initial upward velocity (units/sec)
-  const gravity = 9.8; // units / s^2
+    // input
+    const keysPressed = useRef({
+      forward: false,
+      backward: false,
+      left: false,
+      right: false,
+      jump: false,
+    });
 
-  // input tracking
-  const keysPressed = useRef({
-    forward: false,
-    backward: false,
-    left: false,
-    right: false,
-    jump: false,
-  });
+    // physics refs
+    const velocityYRef = useRef(0);
+    const isGroundedRef = useRef(true);
 
-  // physics refs (synchronous per-frame state)
-  const velocityY = useRef(0);
-  const isGrounded = useRef(true);
+    // saved camera transform for restore
+    const savedCameraWorld = useRef({
+      pos: new THREE.Vector3(...cameraStartPosition),
+      quat: new THREE.Quaternion(),
+      parent: null,
+    });
 
-  // expose group ref to parent
-  useImperativeHandle(ref, () => groupRef.current);
+    useImperativeHandle(ref, () => groupRef.current);
 
-  const logFirstPerson = throttle(
-    (mode) => console.log("Avatar: First-person mode:", mode),
-    1000
-  );
+    // Input listeners
+    useEffect(() => {
+      const down = (e) => {
+        const k = e.key;
+        if (k === 'w' || k === 'W') keysPressed.current.forward = true;
+        if (k === 's' || k === 'S') keysPressed.current.backward = true;
+        if (k === 'a' || k === 'A') keysPressed.current.left = true;
+        if (k === 'd' || k === 'D') keysPressed.current.right = true;
+        if (k === ' ') keysPressed.current.jump = true;
+      };
+      const up = (e) => {
+        const k = e.key;
+        if (k === 'w' || k === 'W') keysPressed.current.forward = false;
+        if (k === 's' || k === 'S') keysPressed.current.backward = false;
+        if (k === 'a' || k === 'A') keysPressed.current.left = false;
+        if (k === 'd' || k === 'D') keysPressed.current.right = false;
+        if (k === ' ') keysPressed.current.jump = false;
+      };
+      window.addEventListener('keydown', down);
+      window.addEventListener('keyup', up);
+      return () => {
+        window.removeEventListener('keydown', down);
+        window.removeEventListener('keyup', up);
+      };
+    }, []);
 
-  useEffect(() => {
-    logFirstPerson(isFirstPerson);
-  }, [isFirstPerson]);
+    // Ensure avatar start position
+    useEffect(() => {
+      if (groupRef.current) {
+        const [x, y, z] = startPosition;
+        groupRef.current.position.set(x, y, z);
+      }
+    }, [startPosition]);
 
-  // keyboard event listeners
-  useEffect(() => {
-    const handleKeyDown = (event) => {
-      const k = event.key;
-      if (k === "w" || k === "W") keysPressed.current.forward = true;
-      if (k === "s" || k === "S") keysPressed.current.backward = true;
-      if (k === "a" || k === "A") keysPressed.current.left = true;
-      if (k === "d" || k === "D") keysPressed.current.right = true;
-      if (event.code === "Space") keysPressed.current.jump = true;
-    };
+    // Deterministic camera spawn on cold mount
+    useEffect(() => {
+      if (!camera || !scene) return;
 
-    const handleKeyUp = (event) => {
-      const k = event.key;
-      if (k === "w" || k === "W") keysPressed.current.forward = false;
-      if (k === "s" || k === "S") keysPressed.current.backward = false;
-      if (k === "a" || k === "A") keysPressed.current.left = false;
-      if (k === "d" || k === "D") keysPressed.current.right = false;
-      if (event.code === "Space") keysPressed.current.jump = false;
-    };
+      // Debug info to detect other camera owners
+      console.log('Avatar mount: camera info', {
+        pos: camera.position.toArray(),
+        parentType: camera.parent?.type,
+        parentName: camera.parent?.name,
+      });
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("keyup", handleKeyUp);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("keyup", handleKeyUp);
-    };
-  }, []);
+      // Set a deterministic third-person start if camera not parented to avatar
+      // Only set on cold mount; this makes full reload deterministic.
+      if (!groupRef.current || camera.parent !== groupRef.current) {
+        camera.position.set(...cameraStartPosition);
+        camera.lookAt(...cameraStartLookAt);
+        camera.updateMatrixWorld(true);
+        // initialize saved restore to this sane start
+        savedCameraWorld.current.pos.copy(new THREE.Vector3(...cameraStartPosition));
+        savedCameraWorld.current.quat.copy(camera.getWorldQuaternion(new THREE.Quaternion()));
+        savedCameraWorld.current.parent = camera.parent || scene;
+      }
+    }, [camera, scene, cameraStartPosition, cameraStartLookAt]);
 
-  // temp objects reused per-frame (not mutated across uses)
-  const tmpDir = useRef(new THREE.Vector3());
-  const tmpQuat = useRef(new THREE.Quaternion());
-  const worldPos = useRef(new THREE.Vector3());
-  const worldQuat = useRef(new THREE.Quaternion());
-  const desiredCamPos = useRef(new THREE.Vector3());
-  const debugMarkerRef = useRef();
+    // Parent/unparent camera when toggling first-person
+    useEffect(() => {
+      if (!camera || !groupRef.current || !scene) return;
 
-  // optional debug marker for desired camera position
-  useEffect(() => {
-    if (!debugCamera) return;
-    const geo = new THREE.SphereGeometry(0.08, 8, 8);
-    const mat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
-    const m = new THREE.Mesh(geo, mat);
-    debugMarkerRef.current = m;
-    scene.add(m);
-    return () => {
-      scene.remove(m);
-      mat.dispose();
-      geo.dispose();
-    };
-  }, [debugCamera, scene]);
+      // If entering first-person, save world transform and parent camera to the group:
+      if (isFirstPerson) {
+        camera.updateMatrixWorld(true);
+        camera.getWorldPosition(savedCameraWorld.current.pos);
+        camera.getWorldQuaternion(savedCameraWorld.current.quat);
+        savedCameraWorld.current.parent = camera.parent || scene;
 
-  useFrame((state, delta) => {
-    const group = groupRef.current;
-    if (!group) return;
+        groupRef.current.add(camera);
+        camera.position.set(0, 1.6, 0);
+        camera.quaternion.set(0, 0, 0, 1);
+        camera.updateMatrixWorld(true);
+        console.log('Switched to FIRST PERSON. Camera parent:', camera.parent?.type);
+        return;
+      }
 
-    // -------- movement & rotation (frame-rate independent) ----------
-    // rotation
-    if (keysPressed.current.left) group.rotation.y += rotationSpeed * delta;
-    if (keysPressed.current.right) group.rotation.y -= rotationSpeed * delta;
+      // If exiting first-person, restore camera to saved parent/world transform
+      if (camera.parent === groupRef.current) {
+        groupRef.current.remove(camera);
+        const attachParent = savedCameraWorld.current.parent || scene;
+        attachParent.add(camera);
 
-    // movement direction local-forward/back
-    tmpDir.current.set(
-      0,
-      0,
-      (keysPressed.current.forward ? -1 : 0) +
-        (keysPressed.current.backward ? 1 : 0)
-    );
+        camera.position.copy(savedCameraWorld.current.pos);
+        camera.quaternion.copy(savedCameraWorld.current.quat);
+        camera.updateMatrixWorld(true);
+        console.log('Switched to THIRD PERSON. Camera restored to:', attachParent.type, camera.position.toArray());
+      }
+    }, [isFirstPerson, camera, scene]);
 
-    // rotate to world direction using group's world quaternion to be robust
-    group.getWorldQuaternion(tmpQuat.current);
-    tmpDir.current.applyQuaternion(tmpQuat.current);
+    // Cleanup on unmount: best-effort restore
+    useEffect(() => {
+      return () => {
+        if (!camera || !scene) return;
+        try {
+          if (camera.parent && camera.parent.remove) camera.parent.remove(camera);
+          (savedCameraWorld.current.parent || scene).add(camera);
+          camera.position.copy(savedCameraWorld.current.pos);
+          camera.quaternion.copy(savedCameraWorld.current.quat);
+          camera.updateMatrixWorld(true);
+        } catch (e) {
+          // ignore
+        }
+      };
+    }, [camera, scene]);
 
-    // compute tentative next world position
-    group.getWorldPosition(worldPos.current);
-    const nextWorldPos = new THREE.Vector3()
-      .copy(worldPos.current)
-      .add(tmpDir.current.multiplyScalar(speed * delta));
+    // Frame loop
+    useFrame((_, delta) => {
+      if (!groupRef.current || !camera) return;
+      const position = groupRef.current.position;
+      const rotation = groupRef.current.rotation;
+      const quaternion = new THREE.Quaternion();
+      const direction = new THREE.Vector3();
 
-    // If you keep group.position as the authoritative source (the group might be parented)
-    // we compute and then set group.position relative to its parent so it moves correctly.
-    // We'll convert nextWorldPos back to the group's local coordinates before writing.
-    // If the group has no parent, local == world.
-    let newLocalPos = nextWorldPos;
-    if (group.parent) {
-      group.parent.worldToLocal(newLocalPos);
-    }
+      // rotation
+      if (keysPressed.current.left) rotation.y += rotationSpeed * (delta * 60);
+      if (keysPressed.current.right) rotation.y -= rotationSpeed * (delta * 60);
 
-    // Simple collision: check with wallBoundingBox (which is in world space)
-    if (wallBoundingBox && wallBoundingBox.current) {
-      // block move if nextWorldPos center is inside the wall box
-      if (!wallBoundingBox.current.containsPoint(nextWorldPos)) {
-        group.position.copy(newLocalPos);
+      // movement
+      quaternion.setFromEuler(rotation);
+      direction
+        .set(0, 0, (keysPressed.current.forward ? -1 : 0) + (keysPressed.current.backward ? 1 : 0))
+        .applyQuaternion(quaternion);
+      position.add(direction.multiplyScalar(speed * (delta * 60)));
+
+      // jumping + gravity
+      if (keysPressed.current.jump && isGroundedRef.current) {
+        velocityYRef.current = jumpStrength;
+        isGroundedRef.current = false;
+      }
+      if (!isGroundedRef.current) {
+        velocityYRef.current -= gravity * (delta * 60);
+        position.y += velocityYRef.current * (delta * 60);
+        if (position.y <= 1) {
+          position.y = 1;
+          velocityYRef.current = 0;
+          isGroundedRef.current = true;
+        }
+      }
+
+      // camera follow only when NOT parented to group (third-person)
+      if (camera.parent !== groupRef.current) {
+        const cameraOffset = new THREE.Vector3(0, 2, 5);
+        const targetCameraPosition = new THREE.Vector3().copy(position).add(cameraOffset.applyQuaternion(quaternion));
+
+        if (
+          Number.isFinite(targetCameraPosition.x) &&
+          Number.isFinite(targetCameraPosition.y) &&
+          Number.isFinite(targetCameraPosition.z)
+        ) {
+          camera.position.lerp(targetCameraPosition, 0.12);
+          camera.lookAt(new THREE.Vector3(position.x, position.y + 1.5, position.z));
+        }
       } else {
-        // blocked — do nothing. Could implement sliding here.
+        // camera is parented (first-person) -> sync rotation optionally
+        camera.quaternion.copy(groupRef.current.getWorldQuaternion(new THREE.Quaternion()));
       }
-    } else {
-      group.position.copy(newLocalPos);
-    }
+    });
 
-    // ---------- jumping & gravity (refs for synchronous updates) ----------
-    if (keysPressed.current.jump && isGrounded.current) {
-      velocityY.current = jumpStrength;
-      isGrounded.current = false;
-    }
+    return (
+      <group ref={groupRef} position={startPosition}>
+        {!isFirstPerson && (
+          <mesh position={[0, 1.6, 0]}>
+            <sphereGeometry args={[0.3, 16, 16]} />
+            <meshStandardMaterial color="peachpuff" />
+          </mesh>
+        )}
+        {/* torso */}
+        <mesh position={[0, 0.7, 0]}>
+          <boxGeometry args={[0.6, 1, 0.4]} />
+          <meshStandardMaterial color="blue" />
+        </mesh>
+        {/* arms */}
+        <mesh position={[-0.5, 0.7, 0]}>
+          <boxGeometry args={[0.2, 0.8, 0.2]} />
+          <meshStandardMaterial color="blue" />
+        </mesh>
+        <mesh position={[0.5, 0.7, 0]}>
+          <boxGeometry args={[0.2, 0.8, 0.2]} />
+          <meshStandardMaterial color="blue" />
+        </mesh>
+        {/* legs */}
+        <mesh position={[-0.2, -0.3, 0]}>
+          <boxGeometry args={[0.2, 0.8, 0.2]} />
+          <meshStandardMaterial color="darkblue" />
+        </mesh>
+        <mesh position={[0.2, -0.3, 0]}>
+          <boxGeometry args={[0.2, 0.8, 0.2]} />
+          <meshStandardMaterial color="darkblue" />
+        </mesh>
+      </group>
+    );
+  }
+);
 
-    if (!isGrounded.current) {
-      velocityY.current -= gravity * delta;
-      group.position.y += velocityY.current * delta;
-      if (group.position.y <= 1) {
-        group.position.y = 1;
-        velocityY.current = 0;
-        isGrounded.current = true;
-      }
-    } else {
-      // keep it from sinking
-      group.position.y = Math.max(group.position.y, 1);
-    }
-
-    // ---------- camera follow (defensive world-based calculation) ----------
-    // compute world position & orientation fresh (important!)
-    group.getWorldPosition(worldPos.current);
-    group.getWorldQuaternion(worldQuat.current);
-
-    if (!isFirstPerson) {
-      const offsetLocal = new THREE.Vector3(0, 5, 8);
-      // clone before applying quaternion so offsetLocal isn't mutated globally
-      const offsetWorld = offsetLocal.clone().applyQuaternion(worldQuat.current);
-
-      desiredCamPos.current.copy(worldPos.current).add(offsetWorld);
-
-      // debug marker
-      if (debugCamera && debugMarkerRef.current) {
-        debugMarkerRef.current.position.copy(desiredCamPos.current);
-      }
-
-      // smoothing factor (exponential) depending on delta
-      const followSpeed = 8.0;
-      const t = 1 - Math.exp(-followSpeed * delta);
-
-      camera.position.lerp(desiredCamPos.current, t);
-
-      // Force camera up vector so it never flips
-      camera.up.set(0, 1, 0);
-
-      // compute look target: a stable point slightly above avatar's head in world space
-      const lookTarget = worldPos.current.clone().add(new THREE.Vector3(0, 1.2, 0));
-      // Avoid degenerate lookAt when camera is almost coincident with lookTarget
-      if (camera.position.distanceToSquared(lookTarget) > 1e-6) {
-        camera.lookAt(lookTarget);
-      }
-    } else {
-      // first-person: put camera at head position and look forward
-      const headLocal = new THREE.Vector3(0, 1.6, 0);
-      const headWorld = headLocal.clone().applyQuaternion(worldQuat.current).add(worldPos.current);
-
-      const fpFollowSpeed = 60.0;
-      const t = 1 - Math.exp(-fpFollowSpeed * delta);
-      camera.position.lerp(headWorld, t);
-      camera.up.set(0, 1, 0);
-
-      // forward target: head + forward vector in world space
-      const forwardWorld = new THREE.Vector3(0, 0, -1).applyQuaternion(worldQuat.current);
-      const lookPoint = headWorld.clone().add(forwardWorld.multiplyScalar(10));
-      if (camera.position.distanceToSquared(lookPoint) > 1e-6) {
-        camera.lookAt(lookPoint);
-      }
-    }
-
-    // optional debug logging when camera flip/stall symptoms occur:
-    if (debugCamera) {
-      // Print quaternion and camera position occasionally
-      // (throttle to avoid spamming)
-      // Using throttle inline to avoid defining extra closures
-      // Quick naive throttle:
-      if (!Avatar._lastDbg || state.clock.getElapsedTime() - Avatar._lastDbg > 0.5) {
-        Avatar._lastDbg = state.clock.getElapsedTime();
-        console.log("WORLD POS:", worldPos.current.toArray());
-        console.log(
-          "WORLD QUAT:",
-          worldQuat.current.x.toFixed(3),
-          worldQuat.current.y.toFixed(3),
-          worldQuat.current.z.toFixed(3),
-          worldQuat.current.w.toFixed(3)
-        );
-        console.log("CAM POS:", camera.position.toArray());
-      }
-    }
-  });
-
-  return (
-    <group ref={groupRef} position={[0, 1, 0]}>
-      {/* Head */}
-      <mesh position={[0, 1.6, 0]}>
-        <sphereGeometry args={[0.3, 16, 16]} />
-        <meshStandardMaterial color="peachpuff" />
-      </mesh>
-      {/* Torso */}
-      <mesh position={[0, 0.7, 0]}>
-        <boxGeometry args={[0.6, 1, 0.4]} />
-        <meshStandardMaterial color="blue" />
-      </mesh>
-      {/* Arms */}
-      <mesh position={[-0.5, 0.7, 0]}>
-        <boxGeometry args={[0.2, 0.8, 0.2]} />
-        <meshStandardMaterial color="blue" />
-      </mesh>
-      <mesh position={[0.5, 0.7, 0]}>
-        <boxGeometry args={[0.2, 0.8, 0.2]} />
-        <meshStandardMaterial color="blue" />
-      </mesh>
-      {/* Legs */}
-      <mesh position={[-0.2, -0.3, 0]}>
-        <boxGeometry args={[0.2, 0.8, 0.2]} />
-        <meshStandardMaterial color="darkblue" />
-      </mesh>
-      <mesh position={[0.2, -0.3, 0]}>
-        <boxGeometry args={[0.2, 0.8, 0.2]} />
-        <meshStandardMaterial color="darkblue" />
-      </mesh>
-    </group>
-  );
-});
-
-Avatar.displayName = "Avatar";
-
+Avatar.displayName = 'Avatar';
 export default Avatar;

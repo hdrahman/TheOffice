@@ -8,11 +8,11 @@ function OfficeLighting() {
   return (
     <group>
       {/* Ambient Light for general lighting */}
-      <ambientLight intensity={0.4} color="#ffffff" /> 
+      <ambientLight intensity={0.4} color="#9a8fe1ff" /> 
 
       {/* Directional Light simulating sunlight, casting shadows */}
       <directionalLight 
-        color="#ffffff" 
+        color="#ad8c4eff" 
         intensity={0.5} 
         position={[15, 20, 10]} 
         castShadow 
@@ -27,7 +27,7 @@ function OfficeLighting() {
 
       {/* Ceiling Point Lights simulating overhead lights */}
       <pointLight 
-        color="#f5f5ff" 
+        color="#5252cdff" 
         intensity={0.7} 
         distance={25} 
         position={[-8, 8, -8]} 
@@ -70,7 +70,7 @@ function OfficeLighting() {
       {/* Optional Emissive Ceiling Fixture */}
       <mesh position={[0, 7.5, 0]}>
         <boxGeometry args={[1, 0.2, 4]} />
-        <meshStandardMaterial emissive="#ffffff" emissiveIntensity={0.5} color="#f0f0ff" />
+        <meshStandardMaterial emissive="#6e2727ff" emissiveIntensity={0.5} color="#f0f0ff" />
       </mesh>
     </group>
   );

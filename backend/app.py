@@ -186,136 +186,6 @@ def get_current_user():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route('/auth/me', methods=['PUT'])
-@require_auth
-def update_current_user():
-    """Update current user profile"""
-    try:
-        data = request.json
-        allowed_fields = ['username', 'full_name', 'bio', 'status', 'profile_picture_url']
-        
-        # Filter only allowed fields
-        update_data = {k: v for k, v in data.items() if k in allowed_fields}
-        
-        if not update_data:
-            return jsonify({"error": "No valid fields to update"}), 400
-        
-        # Update user profile
-        result = supabase.table('users').update(update_data).eq('id', request.user_id).execute()
-        
-        if result.data:
-            return jsonify(result.data[0]), 200
-        else:
-            return jsonify({"error": "Update failed"}), 400
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/auth/upload-profile-picture', methods=['POST'])
-@require_auth
-def upload_profile_picture():
-    """Upload profile picture to Supabase Storage"""
-    try:
-        if 'file' not in request.files:
-            return jsonify({"error": "No file provided"}), 400
-        
-        file = request.files['file']
-        
-        if file.filename == '':
-            return jsonify({"error": "No file selected"}), 400
-        
-        # Validate file type
-        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
-        
-        if file_ext not in allowed_extensions:
-            return jsonify({"error": "Invalid file type. Allowed: png, jpg, jpeg, gif, webp"}), 400
-        
-        # Generate unique filename
-        unique_filename = f"{request.user_id}_{uuid.uuid4()}.{file_ext}"
-        file_path = f"profile-pictures/{unique_filename}"
-        
-        # Read file content
-        file_content = file.read()
-        
-        # Upload to Supabase Storage
-        storage_response = supabase.storage.from_('avatars').upload(
-            file_path,
-            file_content,
-            {"content-type": file.content_type}
-        )
-        
-        # Get public URL
-        public_url = supabase.storage.from_('avatars').get_public_url(file_path)
-        
-        # Update user profile with new picture URL
-        update_result = supabase.table('users').update({
-            'profile_picture_url': public_url
-        }).eq('id', request.user_id).execute()
-        
-        if update_result.data:
-            return jsonify({
-                "profile_picture_url": public_url,
-                "user": update_result.data[0]
-            }), 200
-        else:
-            return jsonify({"error": "Failed to update profile"}), 400
-            
-    except Exception as e:
-        print(f"Error uploading profile picture: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/auth/profile/<user_id>', methods=['GET'])
-@require_auth
-def get_user_profile(user_id):
-    """Get public profile of any user"""
-    try:
-        user_profile = supabase.table('users').select('id, username, full_name, bio, status, created_at, profile_picture_url').eq('id', user_id).execute()
-        
-        if user_profile.data:
-            return jsonify(user_profile.data[0]), 200
-        else:
-            return jsonify({"error": "User not found"}), 404
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-@app.route('/users/<user_id>/stats', methods=['GET'])
-@require_auth
-def get_user_stats(user_id):
-    """Get statistics for a user"""
-    try:
-        # Count conversations user is part of
-        conversations = supabase.table('conversation_participants').select('conversation_id', count='exact').eq('user_id', user_id).execute()
-        conversation_count = conversations.count if hasattr(conversations, 'count') else len(conversations.data) if conversations.data else 0
-        
-        # Count upcoming events user is attending
-        current_time = datetime.utcnow().isoformat()
-        events = supabase.table('event_attendees').select('event_id', count='exact').eq('user_id', user_id).execute()
-        
-        # Get actual events to count only upcoming ones
-        if events.data:
-            event_ids = [e['event_id'] for e in events.data]
-            upcoming_events = supabase.table('events').select('id', count='exact').in_('id', event_ids).gte('start_time', current_time).execute()
-            event_count = upcoming_events.count if hasattr(upcoming_events, 'count') else len(upcoming_events.data) if upcoming_events.data else 0
-        else:
-            event_count = 0
-        
-        # Count messages sent (optional - for future use)
-        messages = supabase.table('messages').select('id', count='exact').eq('sender_id', user_id).execute()
-        message_count = messages.count if hasattr(messages, 'count') else len(messages.data) if messages.data else 0
-        
-        return jsonify({
-            "conversations": conversation_count,
-            "upcoming_events": event_count,
-            "messages_sent": message_count
-        }), 200
-    except Exception as e:
-        print(f"Error getting user stats: {str(e)}")
-        return jsonify({
-            "conversations": 0,
-            "upcoming_events": 0,
-            "messages_sent": 0
-        }), 200
-
 # ============================================
 # CONVERSATIONS ROUTES
 # ============================================
@@ -692,6 +562,71 @@ def health_check():
         "supabase": "connected" if supabase else "not configured",
         "openai": "connected" if openai_client else "not configured"
     }), 200
+
+# ============================================
+# 3D OFFICE / MULTIPLAYER EVENTS
+# ============================================
+
+# Store connected players in memory
+connected_players = {}
+
+@socketio.on('join_office')
+def handle_join_office(data):
+    """Player joins the 3D office"""
+    user_id = data.get('user_id')
+    username = data.get('username')
+    
+    if user_id:
+        connected_players[request.sid] = {
+            'user_id': user_id,
+            'username': username,
+            'position': {'x': 0, 'y': 1, 'z': 0},
+            'rotation': 0,
+            'sid': request.sid
+        }
+        
+        join_room('office')
+        print(f'👤 {username} joined the office (sid: {request.sid})')
+        
+        # Send current players to the new player
+        emit('current_players', list(connected_players.values()))
+        
+        # Notify others about the new player
+        emit('player_joined', connected_players[request.sid], room='office', include_self=False)
+
+@socketio.on('leave_office')
+def handle_leave_office():
+    """Player leaves the 3D office"""
+    if request.sid in connected_players:
+        player = connected_players[request.sid]
+        print(f'👋 {player["username"]} left the office')
+        del connected_players[request.sid]
+        
+        leave_room('office')
+        emit('player_left', {'sid': request.sid}, room='office')
+
+@socketio.on('player_move')
+def handle_player_move(data):
+    """Update player position"""
+    if request.sid in connected_players:
+        connected_players[request.sid]['position'] = data.get('position', {})
+        connected_players[request.sid]['rotation'] = data.get('rotation', 0)
+        
+        # Broadcast to all other players in the office
+        emit('player_moved', {
+            'sid': request.sid,
+            'position': data.get('position'),
+            'rotation': data.get('rotation')
+        }, room='office', include_self=False)
+
+@socketio.on('disconnect')
+def handle_disconnect_office():
+    """Handle player disconnect"""
+    if request.sid in connected_players:
+        player = connected_players[request.sid]
+        print(f'🔌 {player["username"]} disconnected')
+        del connected_players[request.sid]
+        emit('player_left', {'sid': request.sid}, room='office', broadcast=True)
 
 # ============================================
 # RUN SERVER

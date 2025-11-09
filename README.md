@@ -1,6 +1,6 @@
-# Virtual Office Platform for Remote Work Engagement
+# WorkVerse - A Virtual Office Platform for Remote Work Engagement
 
-Welcome to the **Virtual Office Platform**! This application was developed for the HackUMass hackathon. Our platform uses web technologies to allow seamless interaction and collaboration in a remote or hybrid work environment - creating a virtual co-working space!
+Welcome to the **WorkVerse**! This application was developed for the HackUMass hackathon. Our platform uses web technologies to allow seamless interaction and collaboration in a remote or hybrid work environment - creating a virtual co-working space!
 
 ## Table of Contents
 
